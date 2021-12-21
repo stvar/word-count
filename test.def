@@ -1,0 +1,362 @@
+#!/usr/bin/bash
+
+# Copyright (C) 2021  Stefan Vargyas
+# 
+# This file is part of Word-Count.
+# 
+# Word-Count is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# Word-Count is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with Word-Count.  If not, see <http://www.gnu.org/licenses/>.
+
+lorem-ipsum()
+{
+    local x='eval'
+
+    [ "$1" == '-d' ] && {
+        x='echo'
+        shift
+    }
+
+    case "$1" in
+        --@(dict|input|output))
+            n="${1:2}"
+            ;;
+        *) error "lorem-ipsum:" \
+            "internal: invalid arg '$1'"
+            ;;
+    esac
+
+    local s='
+        /^#\s+lorem-ipsum-'"$n"'\s*$/!b
+        n
+        /^\x22\\$/!q
+        :1
+        n
+        /^\x22$/q
+        p
+        b1'
+
+    $x "\
+sed -nr '$s' ${program%.sh}.def"
+}
+
+test-lorem-ipsum2()
+{
+    # stev: do not quote any occurrence of
+    # $dict_temp_file and $text_temp_file
+
+    local c=''
+    [ -n "$text_temp_file" ] && c+=${c:+$'\n'}"\
+lorem-ipsum --input > $text_temp_file &&"
+    [ -n "$dict_temp_file" ] && c+=${c:+$'\n'}"\
+lorem-ipsum --dict > $dict_temp_file &&"
+    [ -z "$text_temp_file" ] && c+=${c:+$'\n'}"\
+lorem-ipsum --input|"
+    c+="
+word-count"
+    [ -z "$dict_temp_file" ] && c+=" \
+<(lorem-ipsum --dict)"
+    [ -n "$dict_temp_file" ] && c+=" \
+$dict_temp_file"
+    [ -n "$text_temp_file" ] && c+=" \
+$text_temp_file"
+    c+="|
+sed '\$d'|cut -d $'\\t' -f2|sort -f"
+
+    run-test \
+'lorem-ipsum2' \
+"lorem-ipsum --dict" \
+"$c"
+}
+
+test-lorem-ipsum3()
+{
+    # stev: do not quote any occurrence of
+    # $dict_temp_file and $text_temp_file
+
+    local c=''
+    [ -n "$text_temp_file" ] && c+=${c:+$'\n'}"\
+lorem-ipsum --input > $text_temp_file &&"
+    [ -n "$dict_temp_file" ] && c+=${c:+$'\n'}"\
+lorem-ipsum --dict > $dict_temp_file &&"
+    [ -z "$text_temp_file" ] && c+=${c:+$'\n'}"\
+lorem-ipsum --input|"
+    c+="
+word-count"
+    [ -z "$dict_temp_file" ] && c+=" \
+<(lorem-ipsum --dict)"
+    [ -n "$dict_temp_file" ] && c+=" \
+$dict_temp_file"
+    [ -n "$text_temp_file" ] && c+=" \
+$text_temp_file"
+    c+="|
+sed '\$d'|sort -k 1n,1 -k 2,2"
+
+    run-test \
+'lorem-ipsum3' \
+"lorem-ipsum --input|
+    tr -s '[:space:]' '\\n'|sort|uniq -c|
+    sed -r 's/^\\s+//;s/\\s+/\\t/'|
+    sort -k 1n,1 -k 2,2" \
+"$c"
+}
+
+tests=(
+### test ###
+'#0'
+'a\nb\nc\n'
+'a\nb\nc\n'
+"\
+1	a
+1	b
+1	c
+3	total
+"
+
+### test ###
+'#1'
+'a\nb\nc'
+'a\nb\nc\n'
+"\
+1	a
+1	b
+1	c
+3	total
+"
+
+### test ###
+'#2'
+'a\nb\nc\n'
+'a\nb\nc'
+"\
+1	a
+1	b
+1	c
+3	total
+"
+
+### test ###
+'#3'
+'a\nb\nc'
+'a\nb\nc'
+"\
+1	a
+1	b
+1	c
+3	total
+"
+
+### test ###
+'#4'
+'a\nb\nc\n'
+'a\tb\vc\n'
+"\
+1	a
+1	b
+1	c
+3	total
+"
+
+### test ###
+'#5'
+'a\nb\nc\n'
+'a\tb\vc\nd\n'
+"\
+1	a
+1	b
+1	c
+4	total
+"
+
+### test ###
+'#6'
+'a\nb\nc\n'
+'a\tb\n'
+"\
+1	a
+1	b
+2	total
+"
+
+### test ###
+'#7'
+'a\nb\0c\n'
+'a\tb c\n'
+"\
+word-count: warning: NUL char in line #2: truncating it from length 3 to 1
+1	a
+1	b
+3	total
+"
+
+### test ###
+'#8'
+'a\nb\na\n'
+'a b\n'
+"\
+word-count: warning: duplicated word in line #3: 'a'
+1	a
+1	b
+2	total
+"
+
+### test ###
+'lorem-ipsum'
+# lorem-ipsum-dict
+"\
+ad
+adipiscing
+aliqua
+aliquip
+amet
+anim
+aute
+cillum
+commodo
+consectetur
+consequat
+culpa
+cupidatat
+deserunt
+do
+dolor
+dolore
+duis
+ea
+eiusmod
+elit
+enim
+esse
+est
+et
+eu
+ex
+excepteur
+exercitation
+fugiat
+id
+in
+incididunt
+ipsum
+irure
+labore
+laboris
+laborum
+lorem
+magna
+minim
+mollit
+nisi
+non
+nostrud
+nulla
+occaecat
+officia
+pariatur
+proident
+qui
+quis
+reprehenderit
+sed
+sint
+sit
+sunt
+tempor
+ullamco
+ut
+velit
+veniam
+voluptate
+"
+
+# lorem-ipsum-input
+"\
+lorem ipsum dolor sit amet consectetur adipiscing elit
+sed do eiusmod tempor incididunt ut labore et dolore magna
+aliqua ut enim ad minim veniam quis nostrud exercitation
+ullamco laboris nisi ut aliquip ex ea commodo consequat
+duis aute irure dolor in reprehenderit in voluptate velit
+esse cillum dolore eu fugiat nulla pariatur excepteur sint
+occaecat cupidatat non proident sunt in culpa qui officia
+deserunt mollit anim id est laborum
+"
+
+# lorem-ipsum-output
+"\
+1	ad
+1	adipiscing
+1	aliqua
+1	aliquip
+1	amet
+1	anim
+1	aute
+1	cillum
+1	commodo
+1	consectetur
+1	consequat
+1	culpa
+1	cupidatat
+1	deserunt
+1	do
+1	duis
+1	ea
+1	eiusmod
+1	elit
+1	enim
+1	esse
+1	est
+1	et
+1	eu
+1	ex
+1	excepteur
+1	exercitation
+1	fugiat
+1	id
+1	incididunt
+1	ipsum
+1	irure
+1	labore
+1	laboris
+1	laborum
+1	lorem
+1	magna
+1	minim
+1	mollit
+1	nisi
+1	non
+1	nostrud
+1	nulla
+1	occaecat
+1	officia
+1	pariatur
+1	proident
+1	qui
+1	quis
+1	reprehenderit
+1	sed
+1	sint
+1	sit
+1	sunt
+1	tempor
+1	ullamco
+1	velit
+1	veniam
+1	voluptate
+2	dolor
+2	dolore
+3	in
+3	ut
+69	total
+"
+)
+
+

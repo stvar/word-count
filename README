@@ -1,0 +1,460 @@
+                    Word-Count: An Exercise of C Programming
+                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                        Stefan Vargyas, stvar@yahoo.com
+
+                                  Dec 16, 2021
+
+
+Table of Contents
+-----------------
+
+0. Copyright & Licensing
+1. The Word-Count Program
+2. Building and Testing Word-Count
+3. The Implementation of Word-Count
+4. References
+
+
+0. Copyright & Licensing
+========================
+
+This program is GPL-licensed free software. Its author is Stefan Vargyas. You
+can redistribute it and/or modify it under the terms of the GNU General Public
+License as published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+You should have received a copy of the GNU General Public License along with
+this program (look up for the file COPYING in the top directory of the source
+tree). If not, see http://gnu.org/licenses/gpl.html.
+
+
+1. The Word-Count Program
+=========================
+
+The Word-Count program's vocation is that of a dictionary-based word counter. It
+consists of one binary program -- 'word-count' -- that is to be used by simple
+command lines as shown by 'word-count's own help info:
+
+  $ ./word-count --help
+  usage: word-count [OPTION...] DICT [TEXT...]
+  where the options are:
+    -m|--use-mmap-io=SPEC  use memory-mapped I/O instead of buffered I/O
+                             as specified: either one of 'dict', 'text',
+                             'none' or 'all'; the default is 'none'; '-'
+                             is a shortcut for 'none' and '+' for 'all';
+                             attached env var: $WORD_COUNT_USE_MMAP_IO
+       --version           print version numbers and exit
+    -?|--help              display this help info and exit
+
+DICT is Word-Count's input dictionary: a given named file containing words (i.e.
+sequence of non-whitespace characters), each placed on a separate line of text.
+Empty lines and lines that begin with '#' are ignored.
+
+TEXT is a (possibly empty) sequence of names of text files that Word-Count will
+process, producing on its standard output a sequence of lines of text as shown:
+
+  NUM TAB WORD LF
+  ...
+  NUM TAB total LF
+
+where each line of the first kind accounts for the number NUM of occurrences of
+the dictionary word WORD in the input given. The output line of the second kind
+(that will always appear on the last output line of Word-Count) accounts for the
+total number of words Word-Count has seen on its input.
+
+When no input text file is given, Word-Count takes its input from the standard
+input stream.
+
+Note that, in the current implementation, Word-Count's notion of input word is
+defined to be any non-empty sequence of non-whitespace characters, considered
+(conceptually) in the "C" locale. Thus Word-Count does not take into account
+the current locale settings of the environment from within which it's invoked.
+
+Here is an example of invoking 'word-count' on its own C source code file:
+
+  $ norm() { cat "$@"|tr -s '[:punct:]' ' '; }
+
+  $ norm word-count.c|./word-count /usr/share/dict/words|sort -k 1n,1
+  ...
+  25	file
+  31	mem
+  45	dict
+  45	node
+  53	char
+  78	hash
+  94	size
+  2212	total
+
+
+2. Building and Testing Word-Count
+==================================
+
+The Word-Count program is written in modern C (that is C11) and was developed
+under a GNU/Linux environment using GCC C compiler 10.2.1, GNU make 4.2.1 and
+a few common GNU/Linux power-tools.
+
+Worth of notice is that the program was tested also with GCC 7.4.0, 8.2.1 and
+9.3.1. Each of these compilers built cleanly Word-Count and each 'word-count'
+binary obtained passed successfully Word-Count's test suite.
+
+Also worth of notice is that building Word-Count with GCC's ASAN and UBSAN
+instrumentation enabled (the GCC's command line options `-fsanitize=address'
+and, respectively, `-fsanitize=undefined') produces 'word-count' binaries that
+each pass successfully the test suite. Word-Count passes its tests when issued
+under Valgrind too.
+
+Important to note: 'word-count' depends on it being build with GCC: it uses
+a few notable extensions to the C language and to the C standard library GCC
+is providing. Two examples: the ubiquitous usage of the built-in function
+'__builtin_types_compatible_p' within a wide range of preprocessor macros
+and the extensively used C extension of the so called 'compound statement
+enclosed in parentheses' expressions (also for the construction of a wide
+array of useful C macros).
+
+For building 'word-count', one has to issue a 'make' command of the following
+kind, from within the top directory of the source tree:
+
+  $ make [ARG]...
+
+where each 'ARG' is of one the following form:
+
+  ------------------------  -------------------------
+       'make' argument            'gcc' argument
+  ------------------------  -------------------------
+    CONFIG+=$NAME             -DCONFIG_$NAME
+    CONFIG+=$NAME=$VALUE      -DCONFIG_$NAME=$VALUE
+    SANITIZE=$SANITIZE        -fsanitize=$SANITIZE
+    OPT=$OPT                  -O$OPT
+  ------------------------  -------------------------
+
+Above, in the case of 'CONFIG' arguments, '$NAME' is the name of the respective
+configuration parameter, stripped off the common prefix 'CONFIG_'; '$VALUE' is
+the value assigned to the respective parameter (if it has such assignable value).
+
+Currently, the configuration parameters of Word-Count are as shown:
+
+  * 'CONFIG_USE_48BIT_PTR'
+    The hash table employed by Word-Count makes use of a well-known feature of
+    the x86-64 processor architecture: that is the ability to pack 16-bit user
+    information into 64-bit pointers [6]. This saves memory when the structure
+    becomes huge. Word-Count defined this build-time configuration parameter --
+    'CONFIG_USE_48BIT_PTR' -- for to bring into a given 'word-count' binary the
+    code that is packing into pointers to dictionary words the length of those
+    words.
+
+    As a consequence, any binary 'word-count' built with 'CONFIG_USE_48BIT_PTR'
+    has a hard-coded limitation on the length of the dictionary words that it
+    accepts: those words must be of length less than 65536 (since the lengths
+    are stored as unsigned integers of 16-bit width).
+
+The 'make' parameter 'SANITIZE=$SANITIZE' makes GCC receiving the argument
+`-fsanitize=$SANITIZE', where '$SANITIZE' can be 'address' or 'undefined'.
+
+The 'make' parameter 'OPT=$OPT' makes GCC to get the argument `-O$OPT', where
+'$OPT' can be [0-3]. When the command line invoking 'make' does not contain an
+argument of form `OPT=$OPT', GCC receives the arguments `-DDEGUG -g' instead.
+
+Upon running 'make', expect to get neither warnings nor errors out of it. If
+everything went OK, 'make' is supposed to have produced the binary 'word-count'.
+
+Word-Count comes along with a test suite -- 'test.def' -- and a 'bash' test
+script -- 'test.sh' -- that exercises the test suite on each and every valid
+combination of built-time and run-time parameters of 'word-count'.
+
+Note that the scripts 'test.{def,sh}' depend on a few GNU/Linux power-tools
+(such as 'bash', 'cut', 'diff', 'sed', 'sort', 'tr', 'uniq') that are found
+on every GNU/Linux installation.
+
+The script 'test.sh' is quite involved, but very easy to be used, as indicated
+by the help info it provides:
+
+  $ ./test.sh --help
+  usage: ./test.sh [ACTION|OPTION]... [ARG]...
+  where the actions are:
+    -A|--all-build-run     build 'word-count' and run all tests on it
+                             for each valid combination of the script's
+                             command line options `-g|--valgrind' and
+                             `-m|--use-mmap-io={-,+,dict|text}', along
+                             with the following 'Makefile' parameters:
+                               * no 'CONFIG' or 'CONFIG+=USE_48BIT_PTR';
+                               * no 'SANITIZE', 'SANITIZE=address',
+                                 or 'SANITIZE=undefined';
+                               * no 'OPT' or 'OPT=3'
+    -B|--build-run         build 'word-count' and run all tests on it
+    -C|--commands          don't run the generated test commands, but
+                             only print them out
+    -R|--run               run all generated test commands on existing
+                             'word-count' binary (default)
+  and the options are:
+    -c|--no-color          do not colorize output
+    -e|--echo              echo the command line invoking the script
+    -g|--valgrind          execute each 'word-count' instance under
+                             'valgrind'
+    -m|--use-mmap-io=SPEC  execute each 'word-count' instance with an
+                             environment variable $WORD_COUNT_USE_MMAP_IO
+                             set to SPEC; it can be either 'dict', 'text',
+                             'none' or 'all'; '-' is a shortcut for 'none'
+                             and '+' for 'all'
+    -v|--verbose           be verbose
+    -?|--help              display this help info and exit
+
+When having built a particular 'word-count' binary (that meaning that one have
+issued 'make' with a particular combination of configuration parameters), for
+to run the test-suite on that particular binary, one should issue simply:
+
+  $ ./test.sh && echo OK
+  OK
+
+or, else, for verbose output:
+
+  $ ./test.sh -v
+  test #0: OK
+  test #1: OK
+  ...
+  test lorem-ipsum: OK
+  test lorem-ipsum2: OK
+  test lorem-ipsum3: OK
+
+The expected behavior is that of all test cases succeed. In the case of things
+going the wrong way for a particular test case, the script will produce a diff
+between expected and actual output of 'word-count'.
+
+For testing Word-Count more thoroughly, the following simple command line should
+be issued:
+
+  $ ./test.sh -A
+
+This command produces a series of lines of text as shown:
+
+  $ ./test.sh -B
+  ...
+  $ ./test.sh -B OPT=3
+  ...
+  $ ./test.sh -B SANITIZE=address
+  ...
+  $ ./test.sh -B SANITIZE=address OPT=3
+  ...
+  $ ./test.sh -B SANITIZE=undefined
+  ...
+  $ ./test.sh -B SANITIZE=undefined OPT=3
+  ...
+  $ ./test.sh -B CONFIG+=USE_48BIT_PTR
+  ...
+  $ ./test.sh -B CONFIG+=USE_48BIT_PTR OPT=3
+  ...
+  $ ./test.sh -B CONFIG+=USE_48BIT_PTR SANITIZE=address
+  ...
+  $ ./test.sh -B CONFIG+=USE_48BIT_PTR SANITIZE=address OPT=3
+  ...
+  $ ./test.sh -B CONFIG+=USE_48BIT_PTR SANITIZE=undefined
+  ...
+  $ ./test.sh -B CONFIG+=USE_48BIT_PTR SANITIZE=undefined OPT=3
+  ...
+
+The ellipsis marks seen above indicate the deletion of certain lines text for
+sake of brevity. The lines deleted were of form '$ ./test -R ...', i.e. inner
+instances of `./test.sh -R', issued with all combinations of valid run-time
+parameters by a corresponding outer command `./test.sh -B':
+
+  $ ./test.sh -R -m-
+  $ ./test.sh -R -m+
+  $ ./test.sh -R -m dict
+  $ ./test.sh -R -m text
+  $ ./test.sh -R -g -m-
+  $ ./test.sh -R -g -m+
+  $ ./test.sh -R -g -m dict
+  $ ./test.sh -R -g -m text
+
+Yet more of an use case of 'test.sh' is the following: run 'test.sh' on a given
+GCC or, in series, on several different GCC's:
+
+  $ ./test.sh -A GCC=gcc-7
+
+  $ for g in {7..10}; do ./test.sh -A GCC=gcc-$g; done
+
+
+3. The Implementation of Word-Count
+===================================
+
+As already known from the descriptions in the sections above, Word-Count is
+comprised of a single C source file, 'word-count.c'.
+
+For to achieve its main function, 'word-count.c' makes use of an associative
+array [4] in the incarnation of open-addressing linear-probing hash table [1].
+
+I have chosen this data structure -- that is associating to each dictionary
+word its correspondent input occurrence counter -- for several reasons:
+
+  (a) As seen in Knuth [1], this hash table is very simple, with respect to
+      both its representation and associated algorithms;
+
+  (b) This kind of hash table leads to implementations that are fast, efficient
+      and cache-friendly (Google itself was advertising the usage of this data
+      structure on CppCon 2017 [5]);
+
+  (c) I myself have employed it in quite a lot of my projects (some of which are
+      public: Path-Set [2], Json-Type [3]).
+
+From the outer level to the inner ones of the code in 'word-count.c', the design
+of Word-Count is as follows:
+
+  struct options_t
+  ----------------
+  Class responsible for parsing the command line options of 'word-count' (also
+  taking in all the corresponding environment variables, if any were given).
+
+  struct dict_t
+  -------------
+  The main class of Word-Count. It implements the dictionary-based word counter
+  function of Word-Count. The 'dict_t' class is built off one instance of class
+  'lhash_t' and one instance of class 'mem_mgr_t'.
+
+  It's worth noting that the class 'lhash_t' does not own the dictionary words
+  it holds references of. The dictionary words are owned by the 'dict_t' class.
+  The 'dict_t' class is delegating the management of its words to the instance
+  of 'mem_mgr_t class.
+
+  struct file_io_t
+  ----------------
+  This is a class that's responsible for the I/O operations the program employs.
+  It wraps around the *conceptually* defined abstract class of which interface
+  is as follows:
+
+    * void (*done)(void* this):
+      virtual destructor;
+
+    * bool (*get_line)(void* this, const char** ptr, size_t* len):
+      virtual method that provides line-oriented I/O functionality.
+
+  There are two concrete classes that implements the interface above: the class
+  'file_map_t' and the class 'file_buf_t'.
+
+  struct file_map_t
+  -----------------
+  A class incarnating the 'file_io_t' interface that implements its operations
+  in a memory-mapped I/O fashion.
+
+  struct file_buf_t
+  -----------------
+  A class incarnating the 'file_io_t' interface that implements its operations
+  in a buffered I/O fashion.
+
+  struct lhash_t
+  -----------------
+  The class implementing Word-Count's hash table, associating integer counters
+  to dictionary words.
+
+  struct lhash_node_t
+  -------------------
+  POD structure that belong to the class 'lhash_t'.
+
+  struct mem_mgr_t
+  ----------------
+  This is a class that's responsible for memory management of dictionary words
+  stored in memory during a running instance of Word-Count. It wraps around the
+  *conceptually* defined abstract class of which interface is as follows:
+
+    * void (*done)(void* this):
+      virtual destructor;
+
+    * const char* (*append)(void* this, struct mem_range_t range):
+      virtual method that appends to the implementation class the given range
+      of memory for that class to *manage* the respective memory. The meaning
+      of *manage* depends on the concrete class implementing the interface.
+
+  There are two concrete classes that implements the interface above: the class
+  'mem_map_t' and the 'mem_buf_t'.
+
+  struct mem_range_t
+  ------------------
+  POD structure holding pairs of a pointer to a buffer and that buffer's size.
+
+  struct mem_map_t
+  ----------------
+  A class incarnating the 'mem_mgr_t' interface that *manages* a set of regions
+  of memory that are file memory-mappings obtained through the library function
+  'mmap'. The lifetime of each managed memory region extends precisely until
+  that of 'mem_map_t's instance itself. At the end of lifetime of an instance
+  of 'mem_map_t' all memory regions that the instance manages are released by
+  calling the C library function 'munmap'.
+
+  struct mem_map_node_t
+  ---------------------
+  Helper class that belongs to class 'mem_map_t' that holds data defining the
+  regions of memory managed by 'mem_map_t'.
+
+  struct mem_buf_t
+  ----------------
+  A class incarnating the 'mem_mgr_t' interface that *manages* a set of regions
+  of memory that are obtained from the free store through the library function
+  'malloc'. The lifetime of each managed memory region extends precisely until
+  that of 'mem_buf_t's instance itself. At the end of lifetime of an instance
+  of 'mem_buf_t' all memory regions that the instance manages are released by
+  calling the C library function 'free'.
+
+  struct mem_buf_node_t
+  ---------------------
+  Helper class that belongs to class 'mem_buf_t' that holds data defining the
+  regions of memory managed by 'mem_buf_t'.
+
+By design, Word-Count makes as few memory-related operations as possible. For
+example, the number of such operations needed for loading in a dictionary from
+an input file stream is minimized: see method 'dict_load', where there's only
+one hash table operation ('lhash_insert') and at most one call to 'memcpy' (in
+'mem_buf_node_append') per each input dictionary word, when the 'dict_t' class
+is using buffered I/O. When the 'dict_t' instance is told to use memory-mapped
+I/O, there's no 'memcpy', nor is any memory-write operation implied by loading
+in the input dictionary file.
+
+
+4. References
+=============
+
+Books:
+
+[1] Donald E. Knuth
+    The Art of Computer Programming,
+    Vol. 3, Sorting and Searching, 2nd ed.
+    Addison Wesley Longman, 1998, 780 pages
+    ISBN 978-0-201-89685-0
+
+    Chapter 6.4: Hashing, pp. 525-528
+
+Free Software:
+
+[2] Path-Set: Dictionary Data Structures for Path Name Strings
+    https://www.nongnu.org/path-set/
+
+[3] Json-Type: JSON Push Parsing and Type Checking
+    https://www.nongnu.org/json-type/
+
+Internet Resources:
+
+[4] Wikipedia: Associative Array
+    https://en.wikipedia.org/wiki/Associative_array
+
+[5] YouTube: CppCon 2017
+    Matt Kulukundis: Designing a Fast, Efficient,
+    Cache-friendly Hash Table, Step by Step
+    https://www.youtube.com/watch?v=ncHmEUmJZf4
+
+[6] Intel® 64 and IA-32 Architectures Software Developer’s Manual
+    https://www.intel.com/content/dam/www/public/us/en/documents/manuals/
+    64-ia-32-architectures-software-developer-vol-1-manual.pdf
+
+    Volume 1: Basic Architecture
+    3.3.7.1 Canonical Addressing
+
+    In 64-bit mode, an address is considered to be in canonical
+    form if address bits 63 through to the most-significant
+    implemented bit by the microarchitecture are set to either
+    all ones or all zeros.
+
+    Intel 64 architecture defines a 64-bit linear address.
+    Implementations can support less. The first implementation
+    of IA-32 processors with Intel 64 architecture supports a
+    48-bit linear address. This means a canonical address must
+    have bits 63 through 48 set to zeros or ones (depending on
+    whether bit 47 is a zero or one).
+
+
