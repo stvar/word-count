@@ -12,7 +12,8 @@ Table of Contents
 1. The Word-Count Program
 2. Building and Testing Word-Count
 3. The Implementation of Word-Count
-4. References
+4. GCC's Integer Arithmetic Overflow Builtins
+5. References
 
 
 0. Copyright & Licensing
@@ -147,6 +148,40 @@ Currently, the configuration parameters of Word-Count are as shown:
     accepts: those words must be of length less than 65536 (since the lengths
     are stored as unsigned integers of 16-bit width).
 
+  * 'CONFIG_USE_OVERFLOW_BUILTINS'
+    Word-Count is developed with a keen attention to the way its low level C
+    operations are implemented. Consequently, each of its integer arithmetic
+    operation is guarded against overflow by code written explicitly for this
+    purpose.
+
+    The parameter 'CONFIG_USE_OVERFLOW_BUILTINS' makes that particular overflow
+    checking code to use the GCC's builtin functions '__builtin_add_overflow_p',
+    '__builtin_sub_overflow_p', '__builtin_mul_overflow_p' [7]. (These builtins
+    are implemented by Clang too).
+
+    A very nice feature of GCC's is that the C code like the one below:
+
+      size_t f(size_t x, size_t y)
+      {
+          ASSERT(!__builtin_add_overflow_p(x, y, (size_t) 0));
+          return x + y;
+      }
+
+    is optimized such that the integer addition operation is done only once:
+
+          .cfi_startproc
+          movq    %rdi, %rax
+          addq    %rsi, %rax
+          jc      .error
+          rep ret
+      .error:
+          ...
+          call    assert_failed
+          .cfi_endproc
+
+     GCC does the very same kind of code generation optimization for subtraction
+     and multiplication operations too. (See the appendix below for details.)
+
 The 'make' parameter 'SANITIZE=$SANITIZE' makes GCC receiving the argument
 `-fsanitize=$SANITIZE', where '$SANITIZE' can be 'address' or 'undefined'.
 
@@ -176,7 +211,8 @@ by the help info it provides:
                              command line options `-g|--valgrind' and
                              `-m|--use-mmap-io={-,+,dict|text}', along
                              with the following 'Makefile' parameters:
-                               * no 'CONFIG' or 'CONFIG+=USE_48BIT_PTR';
+                               * no 'CONFIG', 'CONFIG+=USE_48BIT_PTR',
+                                 or 'CONFIG+=USE_OVERFLOW_BUILTINS';
                                * no 'SANITIZE', 'SANITIZE=address',
                                  or 'SANITIZE=undefined';
                                * no 'OPT' or 'OPT=3'
@@ -250,8 +286,20 @@ This command produces a series of lines of text as shown:
   ...
   $ ./test.sh -B CONFIG+=USE_48BIT_PTR SANITIZE=undefined OPT=3
   ...
+  $ ./test.sh -B CONFIG+=USE_OVERFLOW_BUILTINS
+  ...
+  $ ./test.sh -B CONFIG+=USE_OVERFLOW_BUILTINS OPT=3
+  ...
+  $ ./test.sh -B CONFIG+=USE_OVERFLOW_BUILTINS SANITIZE=address
+  ...
+  $ ./test.sh -B CONFIG+=USE_OVERFLOW_BUILTINS SANITIZE=address OPT=3
+  ...
+  $ ./test.sh -B CONFIG+=USE_OVERFLOW_BUILTINS SANITIZE=undefined
+  ...
+  $ ./test.sh -B CONFIG+=USE_OVERFLOW_BUILTINS SANITIZE=undefined OPT=3
+  ...
 
-The ellipsis marks seen above indicate the deletion of certain lines text for
+The ellipsis marks seen above indicate the deletion of certain text lines for
 sake of brevity. The lines deleted were of form '$ ./test -R ...', i.e. inner
 instances of `./test.sh -R', issued with all combinations of valid run-time
 parameters by a corresponding outer command `./test.sh -B':
@@ -407,7 +455,220 @@ I/O, there's no 'memcpy', nor is any memory-write operation implied by loading
 in the input dictionary file.
 
 
-4. References
+4. GCC's Integer Arithmetic Overflow Builtins
+=============================================
+
+This section illustrates a very nice feature of GCC's code optimizer that was
+mentioned above, in the section describing Word-Count's configuration parameter
+'CONFIG_USE_OVERFLOW_BUILTINS'.
+
+Firstly, two helper shell functions:
+
+  $ gcc-asm() {
+    gcc -Wall -Wextra -DDEBUG -xc - -S -o - "$@"|
+    sed -nr '/\.cfi_startproc/,/\.cfi_endproc/p'
+  }
+
+  # uint-overflow [add|sub|mul]
+  $ uint-overflow() {
+    local n="${1:-add}"
+    case "$n" in
+      add) o='+';;
+      sub) o='-';;
+      mul) o='*';;
+      *) echo >&2 "unknown op name '$n'"; return 1;;
+    esac
+    local N="$(tr '[:lower:]' '[:upper:]' <<< "$n")"
+    echo -e '#include <stdlib.h>\n#include <stdarg.h>\n#include <stdio.h>\n'
+    sed -nr '\|^//\s+>>>\s+WORD_COUNT_COMMON\s*$|,\|^//\s+<<<\s+WORD_COUNT_COMMON\s*$|p' word-count.c
+    echo -e '\nsize_t f(size_t a, size_t b)\n{\n\tASSERT_UINT_'"$N"'_NO_OVERFLOW(a, b);\n\treturn a '"$o"' b;\n}'
+  }
+
+The shell function 'uint-overflow' produces C code for to be able to compile
+simple integer addition, subtraction and multiplication operations using the
+overflow checking code that 'word-count.c' defines (the code shown below was
+shortened, replacing with ellipsis marks the source code of 'word-count.c'):
+
+  # meta-command:
+  $ for n in add sub mul; do
+      c="uint-overflow $n"
+      echo "$ $c"
+      eval "$c"
+    done
+
+  $ uint-overflow add
+  #include <stdlib.h>
+  #include <stdarg.h>
+  #include <stdio.h>
+  ...
+  size_t f(size_t a, size_t b)
+  {
+      ASSERT_UINT_ADD_NO_OVERFLOW(a, b);
+      return a + b;
+  }
+
+  $ uint-overflow sub
+  #include <stdlib.h>
+  #include <stdarg.h>
+  #include <stdio.h>
+  ...
+  size_t f(size_t a, size_t b)
+  {
+      ASSERT_UINT_SUB_NO_OVERFLOW(a, b);
+      return a - b;
+  }
+
+  $ uint-overflow mul
+  #include <stdlib.h>
+  #include <stdarg.h>
+  #include <stdio.h>
+  ...
+  size_t f(size_t a, size_t b)
+  {
+      ASSERT_UINT_MUL_NO_OVERFLOW(a, b);
+      return a * b;
+  }
+
+Now, let see the code generated on an Intel platform for the above three kinds
+of functions 'f', when the functions do not make use of GCC's integer overflow
+checking builtins.
+
+  # meta-command
+  $ for n in add sub mul; do
+      c="uint-overflow $n|gcc-asm -O3"
+      echo "$ $c"
+      eval "$c"
+    done
+
+  $ uint-overflow add|gcc-asm -O3
+  .cfi_startproc
+  movq    %rsi, %rax
+  notq    %rax
+  cmpq    %rdi, %rax
+  jb      .L7
+  leaq    (%rsi,%rdi), %rax
+  ret
+  .p2align 4,,10
+  .p2align 3
+  .L7:
+  subq    $8, %rsp
+  .cfi_def_cfa_offset 16
+  movl    $.LC0, %ecx
+  movl    $__func__.2862, %edx
+  movl    $384, %esi
+  movl    $.LC1, %edi
+  call    assert_failed
+  .cfi_endproc
+
+  $ uint-overflow sub|gcc-asm -O3
+  .cfi_startproc
+  cmpq    %rsi, %rdi
+  jb      .L7
+  movq    %rdi, %rax
+  subq    %rsi, %rax
+  ret
+  .p2align 4,,10
+  .p2align 3
+  .L7:
+  subq    $8, %rsp
+  .cfi_def_cfa_offset 16
+  movl    $.LC0, %ecx
+  movl    $__func__.2862, %edx
+  movl    $384, %esi
+  movl    $.LC1, %edi
+  call    assert_failed
+  .cfi_endproc
+
+  $ uint-overflow mul|gcc-asm -O3
+  .cfi_startproc
+  testq    %rsi, %rsi
+  je      .L2
+  movq    %rdi, %rax
+  mulq    %rsi
+  jo      .L13
+  .L2:
+  movq    %rsi, %rax
+  imulq    %rdi, %rax
+  ret
+  .L13:
+  subq    $8, %rsp
+  .cfi_def_cfa_offset 16
+  movl    $.LC0, %ecx
+  movl    $__func__.2862, %edx
+  movl    $384, %esi
+  movl    $.LC1, %edi
+  call    assert_failed
+  .cfi_endproc
+
+When the 'f' functions do make use of GCC's integer overflow checking builtins,
+then the code generated gets simplified to only executing the respective integer
+arithmetic operation and a corresponding jump instruction handling the case of
+an actual overflow:
+
+  # meta-command:
+  $ for n in add sub mul; do
+      c="uint-overflow $n|gcc-asm -O3 -DCONFIG_USE_OVERFLOW_BUILTINS"
+      echo "$ $c"
+      eval "$c"
+    done
+
+  $ uint-overflow add|gcc-asm -O3 -DCONFIG_USE_OVERFLOW_BUILTINS
+  .cfi_startproc
+  movq    %rdi, %rax
+  addq    %rsi, %rax
+  jc      .L10
+  rep ret
+  .L10:
+  subq    $8, %rsp
+  .cfi_def_cfa_offset 16
+  movl    $.LC0, %ecx
+  movl    $__func__.2862, %edx
+  movl    $384, %esi
+  movl    $.LC1, %edi
+  call    assert_failed
+  .cfi_endproc
+
+  $ uint-overflow sub|gcc-asm -O3 -DCONFIG_USE_OVERFLOW_BUILTINS
+  .cfi_startproc
+  movq    %rdi, %rax
+  subq    %rsi, %rax
+  jb      .L10
+  movq    %rdi, %rax
+  subq    %rsi, %rax
+  ret
+  .L10:
+  subq    $8, %rsp
+  .cfi_def_cfa_offset 16
+  movl    $.LC0, %ecx
+  movl    $__func__.2862, %edx
+  movl    $384, %esi
+  movl    $.LC1, %edi
+  call    assert_failed
+  .cfi_endproc
+
+  $ uint-overflow mul|gcc-asm -O3 -DCONFIG_USE_OVERFLOW_BUILTINS
+  .cfi_startproc
+  movq    %rdi, %rax
+  mulq    %rsi
+  jo      .L10
+  rep ret
+  .L10:
+  subq    $8, %rsp
+  .cfi_def_cfa_offset 16
+  movl    $.LC0, %ecx
+  movl    $__func__.2862, %edx
+  movl    $384, %esi
+  movl    $.LC1, %edi
+  call    assert_failed
+  .cfi_endproc
+
+Above is to be seen that on Intel platforms, GCC employs the carry flag (CF)
+and overflow flag (OF) with the instructions 'jc', 'jb' and, respectively,
+'jo' to check whether the previously executed integer arithmetic operation
+(addition, subtraction and multiplication) caused overflow or not.
+
+
+5. References
 =============
 
 Books:
@@ -456,5 +717,8 @@ Internet Resources:
     48-bit linear address. This means a canonical address must
     have bits 63 through 48 set to zeros or ones (depending on
     whether bit 47 is a zero or one).
+
+[7] GCC's Docs: 6.52 Built-in Functions to Perform Arithmetic with Overflow Checking
+    https://gcc.gnu.org/onlinedocs/gcc-5.1.0/gcc/Integer-Overflow-Builtins.html
 
 
