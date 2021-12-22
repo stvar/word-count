@@ -156,8 +156,7 @@ Currently, the configuration parameters of Word-Count are as shown:
 
     The parameter 'CONFIG_USE_OVERFLOW_BUILTINS' makes that particular overflow
     checking code to use the GCC's builtin functions '__builtin_add_overflow_p',
-    '__builtin_sub_overflow_p', '__builtin_mul_overflow_p' [7]. (These builtins
-    are implemented by Clang too).
+    '__builtin_sub_overflow_p', '__builtin_mul_overflow_p' [7].
 
     A very nice feature of GCC's is that the C code like the one below:
 
