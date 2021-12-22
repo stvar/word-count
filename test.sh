@@ -246,11 +246,14 @@ build-run-tests()
         c="\
 $program -B${verbose:+ -v}${no_color:+ -c} -e$a"
         local r=0
-        for p in '' USE_48BIT_PTR USE_OVERFLOW_BUILTINS; do
+        for p in '' \
+            USE_48BIT_PTR \
+            USE_OVERFLOW_BUILTINS \
+            USE_48BIT_PTR\ USE_OVERFLOW_BUILTINS; do
             for s in '' address undefined; do
                 for o in '' 3; do
                     a=''
-                    [ -n "$p" ] && a+=" CONFIG+=$p"
+                    [ -n "$p" ] && a+=" CONFIG+=${p// / CONFIG+=}"
                     [ -n "$s" ] && a+=" SANITIZE=$s"
                     [ -n "$o" ] && a+=" OPT=$o"
                     eval "$c$a" ||
