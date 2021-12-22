@@ -472,6 +472,7 @@ Firstly, two helper shell functions:
   # uint-overflow [add|sub|mul]
   $ uint-overflow() {
     local n="${1:-add}"
+    local o;
     case "$n" in
       add) o='+';;
       sub) o='-';;
