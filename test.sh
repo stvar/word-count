@@ -27,7 +27,8 @@ where the actions are:
                            command line options \`-g|--valgrind' and
                            \`-m|--use-mmap-io={-,+,dict|text}', along
                            with the following 'Makefile' parameters:
-                             * no 'CONFIG' or 'CONFIG+=USE_48BIT_PTR';
+                             * no 'CONFIG', 'CONFIG+=USE_48BIT_PTR',
+                               or 'CONFIG+=USE_OVERFLOW_BUILTINS';
                              * no 'SANITIZE', 'SANITIZE=address',
                                or 'SANITIZE=undefined';
                              * no 'OPT' or 'OPT=3'
@@ -245,7 +246,7 @@ build-run-tests()
         c="\
 $program -B${verbose:+ -v}${no_color:+ -c} -e$a"
         local r=0
-        for p in '' USE_48BIT_PTR; do
+        for p in '' USE_48BIT_PTR USE_OVERFLOW_BUILTINS; do
             for s in '' address undefined; do
                 for o in '' 3; do
                     a=''
