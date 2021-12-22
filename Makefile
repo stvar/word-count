@@ -35,7 +35,7 @@ CFLAGS := -Wall -Wextra -std=${GCC_STD} \
 
 # build-time configuration parameters
 
-CFGS := USE_48BIT_PTR
+CFGS := USE_48BIT_PTR|USE_OVERFLOW_BUILTINS
 
 ifdef CONFIG
 CONFIG_CHECK = $(shell \
