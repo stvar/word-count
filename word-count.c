@@ -217,6 +217,144 @@ const char help[] =
         (int) (x);                   \
     })
 
+#ifdef CONFIG_USE_OVERFLOW_BUILTINS
+#define UINT_DEC_NO_OVERFLOW__(t, x) \
+    (!__builtin_sub_overflow_p((x), 1, (t) 0))
+#define UINT_INC_NO_OVERFLOW__(t, x) \
+    (!__builtin_add_overflow_p((x), 1, (t) 0))
+#define UINT_SUB_NO_OVERFLOW__(t, x, y) \
+    (!__builtin_sub_overflow_p((x), (y), (t) 0))
+#define UINT_ADD_NO_OVERFLOW__(t, x, y) \
+    (!__builtin_add_overflow_p((x), (y), (t) 0))
+#define UINT_MUL_NO_OVERFLOW__(t, x, y) \
+    (!__builtin_mul_overflow_p((x), (y), (t) 0))
+#else // CONFIG_USE_OVERFLOW_BUILTINS
+#define UINT_DEC_NO_OVERFLOW__(t, x) \
+    ((x) > 0)
+#define UINT_INC_NO_OVERFLOW__(t, x) \
+    ((x) < TYPE_UNSIGNED_INT_MAX_(t))
+#define UINT_SUB_NO_OVERFLOW__(t, x, y) \
+    ((x) >= (y))
+#define UINT_ADD_NO_OVERFLOW__(t, x, y) \
+    ((x) <= TYPE_UNSIGNED_INT_MAX_(t) - (y))
+#define UINT_MUL_NO_OVERFLOW__(t, x, y) \
+    ((y) == 0 || (x) <= TYPE_UNSIGNED_INT_MAX_(t) / (y))
+#endif // CONFIG_USE_OVERFLOW_BUILTINS
+
+#define UINT_DEC_NO_OVERFLOW_(x) \
+        UINT_DEC_NO_OVERFLOW__(TYPEOF(x), x)
+#define UINT_INC_NO_OVERFLOW_(x) \
+        UINT_INC_NO_OVERFLOW__(TYPEOF(x), x)
+#define UINT_SUB_NO_OVERFLOW_(x, y) \
+        UINT_SUB_NO_OVERFLOW__(TYPEOF((x) - (y)), x, y)
+#define UINT_ADD_NO_OVERFLOW_(x, y) \
+        UINT_ADD_NO_OVERFLOW__(TYPEOF((x) + (y)), x, y)
+#define UINT_MUL_NO_OVERFLOW_(x, y) \
+        UINT_MUL_NO_OVERFLOW__(TYPEOF((x) * (y)), x, y)
+
+#define TYPEOF_IS_UINT(x) \
+    TYPE_IS_UNSIGNED_INT(TYPEOF(x))
+
+#define UINT_DEC_NO_OVERFLOW(x)     \
+    (                               \
+        STATIC(TYPEOF_IS_UINT(x)),  \
+        UINT_DEC_NO_OVERFLOW_(x)    \
+    )
+
+#define UINT_INC_NO_OVERFLOW(x)     \
+    (                               \
+        STATIC(TYPEOF_IS_UINT(x)),  \
+        UINT_INC_NO_OVERFLOW_(x)    \
+    )
+
+#define UINT_SUB_NO_OVERFLOW(x, y)  \
+    (                               \
+        STATIC(TYPEOF_IS_UINT(x)),  \
+        STATIC(TYPEOF_IS_UINT(y)),  \
+        UINT_SUB_NO_OVERFLOW_(x, y) \
+    )
+
+#define UINT_ADD_NO_OVERFLOW(x, y)  \
+    (                               \
+        STATIC(TYPEOF_IS_UINT(x)),  \
+        STATIC(TYPEOF_IS_UINT(y)),  \
+        UINT_ADD_NO_OVERFLOW_(x, y) \
+    )
+
+#define UINT_MUL_NO_OVERFLOW(x, y)  \
+    (                               \
+        STATIC(TYPEOF_IS_UINT(x)),  \
+        STATIC(TYPEOF_IS_UINT(y)),  \
+        UINT_MUL_NO_OVERFLOW_(x, y) \
+    )
+
+#define UINT_NO_OVERFLOW(m, n, ...) \
+    m(UINT_ ## n ## _NO_OVERFLOW(__VA_ARGS__))
+
+#define ASSERT_UINT_INC_NO_OVERFLOW(x)    UINT_NO_OVERFLOW(ASSERT, INC, x)
+#define ASSERT_UINT_DEC_NO_OVERFLOW(x)    UINT_NO_OVERFLOW(ASSERT, DEC, x)
+
+#define ASSERT_UINT_SUB_NO_OVERFLOW(x, y) UINT_NO_OVERFLOW(ASSERT, SUB, x, y)
+#define ASSERT_UINT_ADD_NO_OVERFLOW(x, y) UINT_NO_OVERFLOW(ASSERT, ADD, x, y)
+#define ASSERT_UINT_MUL_NO_OVERFLOW(x, y) UINT_NO_OVERFLOW(ASSERT, MUL, x, y)
+
+#define VERIFY_UINT_INC_NO_OVERFLOW(x)    UINT_NO_OVERFLOW(VERIFY, INC, x)
+#define VERIFY_UINT_DEC_NO_OVERFLOW(x)    UINT_NO_OVERFLOW(VERIFY, DEC, x)
+
+#define VERIFY_UINT_SUB_NO_OVERFLOW(x, y) UINT_NO_OVERFLOW(VERIFY, SUB, x, y)
+#define VERIFY_UINT_ADD_NO_OVERFLOW(x, y) UINT_NO_OVERFLOW(VERIFY, ADD, x, y)
+#define VERIFY_UINT_MUL_NO_OVERFLOW(x, y) UINT_NO_OVERFLOW(VERIFY, MUL, x, y)
+
+#define UINT_UN_OP(m, n, op, x)    \
+    ({                             \
+        UINT_NO_OVERFLOW(m, n, x); \
+        (x) op;                    \
+    })
+
+#define UINT_INC(x) UINT_UN_OP(ASSERT, INC, +1, x)
+#define UINT_DEC(x) UINT_UN_OP(ASSERT, DEC, -1, x)
+
+#define UINT_BIN_OP(m, n, op, x, y)   \
+    ({                                \
+        UINT_NO_OVERFLOW(m, n, x, y); \
+        (x) op (y);                   \
+    })
+
+#define UINT_SUB(x, y) UINT_BIN_OP(ASSERT, SUB, -, x, y)
+#define UINT_ADD(x, y) UINT_BIN_OP(ASSERT, ADD, +, x, y)
+#define UINT_MUL(x, y) UINT_BIN_OP(ASSERT, MUL, *, x, y)
+
+#define UINT_SUB_EQ(x, y) UINT_BIN_OP(ASSERT, SUB, -=, x, y)
+#define UINT_ADD_EQ(x, y) UINT_BIN_OP(ASSERT, ADD, +=, x, y)
+#define UINT_MUL_EQ(x, y) UINT_BIN_OP(ASSERT, MUL, *=, x, y)
+
+#define UINT_PRE_OP(m, n, op, x)   \
+    ({                             \
+        UINT_NO_OVERFLOW(m, n, x); \
+        op (x);                    \
+    })
+#define UINT_POST_OP(m, n, op, x)  \
+    ({                             \
+        UINT_NO_OVERFLOW(m, n, x); \
+        (x) op;                    \
+    })
+
+#define UINT_PRE_INC(x) UINT_PRE_OP(ASSERT, INC, ++, x)
+#define UINT_PRE_DEC(x) UINT_PRE_OP(ASSERT, DEC, --, x)
+
+#define UINT_POST_INC(x) UINT_POST_OP(ASSERT, INC, ++, x)
+#define UINT_POST_DEC(x) UINT_POST_OP(ASSERT, DEC, --, x)
+
+#define SIZE_BIT (sizeof(size_t) * CHAR_BIT)
+
+#if SIZE_MAX == UINT_MAX
+#define SZ(x) x ## U
+#elif SIZE_MAX == ULONG_MAX
+#define SZ(x) x ## UL
+#else
+#error size_t is neither unsigned int nor unsigned long
+#endif
+
 // stev: cast 'T**' to 'T const* const*'
 #define PTR_PTR_CAST(p, t)         \
     (                              \
@@ -486,8 +624,7 @@ struct mem_buf_node_t* mem_buf_node_create(
     struct mem_buf_node_t* p;
 
     ASSERT(size > 0);
-    ASSERT(n <= SIZE_MAX - size);
-    // => n + size <= SIZE_MAX
+    ASSERT_UINT_ADD_NO_OVERFLOW(n, size);
 
     p = malloc(n + size);
     VERIFY(p != NULL);
@@ -509,7 +646,8 @@ size_t mem_buf_node_get_free_space(
     struct mem_buf_node_t* node)
 {
     ASSERT(node->size > 0);
-    ASSERT(node->size >= node->len);
+    ASSERT_UINT_SUB_NO_OVERFLOW(
+        node->size, node->len);
     return node->size - node->len;
 }
 
@@ -838,7 +976,7 @@ struct lhash_t
         STATIC(IS_CONSTANT(d)),     \
         STATIC(n > 0),              \
         STATIC(d > 0),              \
-        (v <= SIZE_MAX / n)         \
+        UINT_MUL_NO_OVERFLOW(v, n)  \
         ? v = (v * n) / d,          \
           true                      \
         : false                     \
@@ -880,27 +1018,17 @@ bool lhash_is_prime(size_t n)
     while (s < n && (n % d)) {
         // (a + 2) ^ 2 = a^2 + 4*(a + 1)
         // invariant: s == d^2
-        ASSERT(d < SIZE_MAX);
+        ASSERT_UINT_INC_NO_OVERFLOW(d);
         d ++;
-        ASSERT(d <= SIZE_MAX / 4);
+        ASSERT_UINT_MUL_NO_OVERFLOW(d, SZ(4));
         i = d * 4;
-        ASSERT(s <= SIZE_MAX - i);
+        ASSERT_UINT_ADD_NO_OVERFLOW(s, i);
         s += i;
-        ASSERT(d < SIZE_MAX);
+        ASSERT_UINT_INC_NO_OVERFLOW(d);
         d ++;
     }
     return s >= n;
 }
-
-#define SIZE_BIT (sizeof(size_t) * CHAR_BIT)
-
-#if SIZE_MAX == UINT_MAX
-#define SZ(x) x ## U
-#elif SIZE_MAX == ULONG_MAX
-#define SZ(x) x ## UL
-#else
-#error size_t is neither unsigned int nor unsigned long
-#endif
 
 size_t lhash_next_prime(size_t n)
 {
@@ -1650,7 +1778,8 @@ void dict_count(
 
     file_io_done(&f);
 
-    ASSERT(dict->n_words <= SIZE_MAX - w);
+    ASSERT_UINT_ADD_NO_OVERFLOW(
+        dict->n_words, w);
     dict->n_words += w;
 }
 
