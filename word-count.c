@@ -33,6 +33,8 @@
 #include <fcntl.h>
 #include <inttypes.h>
 
+// >>> WORD_COUNT_COMMON
+
 #ifndef __GNUC__
 #error we need a GCC compiler
 #elif __GNUC__ < 4
@@ -49,6 +51,8 @@
 #define STRINGIFY_(s) #s
 #define STRINGIFY(s)  STRINGIFY_(s)
 
+// <<< WORD_COUNT_COMMON
+
 const char stdin_name[] = "<stdin>";
 
 const char program[] = STRINGIFY(PROGRAM);
@@ -64,6 +68,8 @@ const char help[] =
 "                           attached env var: $WORD_COUNT_USE_MMAP_IO\n"
 "     --version           print version numbers and exit\n"
 "  -?|--help              display this help info and exit\n";
+
+// >>> WORD_COUNT_COMMON
 
 // stev: important requirement: VERIFY evaluates E only once!
 
@@ -418,6 +424,8 @@ void unexpect_error(
         ARRAY_INDEX(a, i) && (a)[i] \
             ? (a)[i] : (d)          \
     )
+
+// <<< WORD_COUNT_COMMON
 
 typedef char fmt_buf_t[512];
 
