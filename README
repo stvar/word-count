@@ -77,14 +77,14 @@ Here is an example of invoking 'word-count' on its own C source code file:
 
   $ norm word-count.c|./word-count /usr/share/dict/words|sort -k 1n,1
   ...
-  25	file
-  31	mem
-  45	dict
-  45	node
-  53	char
-  78	hash
-  94	size
-  2212	total
+  25    file
+  31    mem
+  45    dict
+  45    node
+  53    char
+  78    hash
+  94    size
+  2212  total
 
 
 2. Building and Testing Word-Count
