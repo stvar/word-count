@@ -529,7 +529,7 @@ shortened, replacing with ellipsis marks the source code of 'word-count.c'):
       return a * b;
   }
 
-Now, let see the code generated on an Intel platform for the above three kinds
+Now, let see the code generated on an x86-64 platform for the above three kinds
 of functions 'f', when the functions do not make use of GCC's integer overflow
 checking builtins.
 
@@ -662,7 +662,7 @@ an actual overflow:
   call    assert_failed
   .cfi_endproc
 
-Above is to be seen that on Intel platforms, GCC employs the carry flag (CF)
+Above is to be seen that on x86-64 platforms, GCC employs the carry flag (CF)
 and overflow flag (OF) with the instructions 'jc', 'jb' and, respectively,
 'jo' to check whether the previously executed integer arithmetic operation
 (addition, subtraction and multiplication) caused overflow or not.
