@@ -541,64 +541,64 @@ checking builtins.
     done
 
   $ uint-overflow add|gcc-asm -O3
-  .cfi_startproc
-  movq    %rsi, %rax
-  notq    %rax
-  cmpq    %rdi, %rax
-  jb      .L7
-  leaq    (%rsi,%rdi), %rax
-  ret
-  .p2align 4,,10
-  .p2align 3
+          .cfi_startproc
+          movq    %rsi, %rax
+          notq    %rax
+          cmpq    %rdi, %rax
+          jb      .L7
+          leaq    (%rsi,%rdi), %rax
+          ret
+          .p2align 4,,10
+          .p2align 3
   .L7:
-  subq    $8, %rsp
-  .cfi_def_cfa_offset 16
-  movl    $.LC0, %ecx
-  movl    $__func__.0, %edx
-  movl    $384, %esi
-  movl    $.LC1, %edi
-  call    assert_failed
-  .cfi_endproc
+          subq    $8, %rsp
+          .cfi_def_cfa_offset 16
+          movl    $.LC0, %ecx
+          movl    $__func__.0, %edx
+          movl    $384, %esi
+          movl    $.LC1, %edi
+          call    assert_failed
+          .cfi_endproc
 
   $ uint-overflow sub|gcc-asm -O3
-  .cfi_startproc
-  cmpq    %rsi, %rdi
-  jb      .L7
-  movq    %rdi, %rax
-  subq    %rsi, %rax
-  ret
-  .p2align 4,,10
-  .p2align 3
+          .cfi_startproc
+          cmpq    %rsi, %rdi
+          jb      .L7
+          movq    %rdi, %rax
+          subq    %rsi, %rax
+          ret
+          .p2align 4,,10
+          .p2align 3
   .L7:
-  subq    $8, %rsp
-  .cfi_def_cfa_offset 16
-  movl    $.LC0, %ecx
-  movl    $__func__.0, %edx
-  movl    $384, %esi
-  movl    $.LC1, %edi
-  call    assert_failed
-  .cfi_endproc
+          subq    $8, %rsp
+          .cfi_def_cfa_offset 16
+          movl    $.LC0, %ecx
+          movl    $__func__.0, %edx
+          movl    $384, %esi
+          movl    $.LC1, %edi
+          call    assert_failed
+          .cfi_endproc
 
   $ uint-overflow mul|gcc-asm -O3
-  .cfi_startproc
-  testq    %rsi, %rsi
-  je      .L2
-  movq    %rdi, %rax
-  mulq    %rsi
-  jo      .L13
+          .cfi_startproc
+          testq   %rsi, %rsi
+          je      .L2
+          movq    %rdi, %rax
+          mulq    %rsi
+          jo      .L13
   .L2:
-  movq    %rsi, %rax
-  imulq    %rdi, %rax
-  ret
+          movq    %rsi, %rax
+          imulq   %rdi, %rax
+          ret
   .L13:
-  pushq   %rax
-  .cfi_def_cfa_offset 16
-  movl    $.LC0, %ecx
-  movl    $__func__.0, %edx
-  movl    $384, %esi
-  movl    $.LC1, %edi
-  call    assert_failed
-  .cfi_endproc
+          pushq   %rax
+          .cfi_def_cfa_offset 16
+          movl    $.LC0, %ecx
+          movl    $__func__.0, %edx
+          movl    $384, %esi
+          movl    $.LC1, %edi
+          call    assert_failed
+          .cfi_endproc
 
 When the 'f' functions do make use of GCC's integer overflow checking builtins,
 then the code generated gets simplified to only executing the respective integer
@@ -613,53 +613,53 @@ an actual overflow (except for subtraction operations on x86-64 platforms):
     done
 
   $ uint-overflow add|gcc-asm -O3 -DCONFIG_USE_OVERFLOW_BUILTINS
-  .cfi_startproc
-  movq    %rdi, %rax
-  addq    %rsi, %rax
-  jc      .L10
-  ret
+          .cfi_startproc
+          movq    %rdi, %rax
+          addq    %rsi, %rax
+          jc      .L10
+          ret
   .L10:
-  pushq   %rax
-  .cfi_def_cfa_offset 16
-  movl    $.LC0, %ecx
-  movl    $__func__.0, %edx
-  movl    $384, %esi
-  movl    $.LC1, %edi
-  call    assert_failed
-  .cfi_endproc
+          pushq   %rax
+          .cfi_def_cfa_offset 16
+          movl    $.LC0, %ecx
+          movl    $__func__.0, %edx
+          movl    $384, %esi
+          movl    $.LC1, %edi
+          call    assert_failed
+          .cfi_endproc
 
   $ uint-overflow sub|gcc-asm -O3 -DCONFIG_USE_OVERFLOW_BUILTINS
-  .cfi_startproc
-  movq    %rdi, %rax
-  cmpq    %rsi, %rdi
-  jb      .L10
-  subq    %rsi, %rax
-  ret
+          .cfi_startproc
+          movq    %rdi, %rax
+          cmpq    %rsi, %rdi
+          jb      .L10
+          subq    %rsi, %rax
+          ret
   .L10:
-  pushq   %rax
-  .cfi_def_cfa_offset 16
-  movl    $.LC0, %ecx
-  movl    $__func__.0, %edx
-  movl    $384, %esi
-  movl    $.LC1, %edi
-  call    assert_failed
-  .cfi_endproc
+          pushq   %rax
+          .cfi_def_cfa_offset 16
+          movl    $.LC0, %ecx
+          movl    $__func__.0, %edx
+          movl    $384, %esi
+          movl    $.LC1, %edi
+          call    assert_failed
+          .cfi_endproc
 
   $ uint-overflow mul|gcc-asm -O3 -DCONFIG_USE_OVERFLOW_BUILTINS
-  .cfi_startproc
-  movq    %rdi, %rax
-  mulq    %rsi
-  jo      .L10
-  ret
+          .cfi_startproc
+          movq    %rdi, %rax
+          mulq    %rsi
+          jo      .L10
+          ret
   .L10:
-  pushq   %rax
-  .cfi_def_cfa_offset 16
-  movl    $.LC0, %ecx
-  movl    $__func__.0, %edx
-  movl    $384, %esi
-  movl    $.LC1, %edi
-  call    assert_failed
-  .cfi_endproc
+          pushq   %rax
+          .cfi_def_cfa_offset 16
+          movl    $.LC0, %ecx
+          movl    $__func__.0, %edx
+          movl    $384, %esi
+          movl    $.LC1, %edi
+          call    assert_failed
+          .cfi_endproc
 
 Above is to be seen that on x86-64 platforms, GCC uses the carry flag (CF) and
 the overflow flag (OF) -- by means of the instructions 'jc' and, respectively,
