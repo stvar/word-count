@@ -603,7 +603,7 @@ checking builtins.
 When the 'f' functions do make use of GCC's integer overflow checking builtins,
 then the code generated gets simplified to only executing the respective integer
 arithmetic operation and a corresponding jump instruction handling the case of
-an actual overflow:
+an actual overflow (except for subtraction operations on x86-64 platforms):
 
   # meta-command:
   $ for n in add sub mul; do
@@ -662,10 +662,23 @@ an actual overflow:
   call    assert_failed
   .cfi_endproc
 
-Above is to be seen that on x86-64 platforms, GCC employs the carry flag (CF)
-and overflow flag (OF) with the instructions 'jc', 'jb' and, respectively,
-'jo' to check whether the previously executed integer arithmetic operation
-(addition, subtraction and multiplication) caused overflow or not.
+Above is to be seen that on x86-64 platforms, GCC uses the carry flag (CF) and
+the overflow flag (OF) -- by means of the instructions 'jc' and, respectively,
+'jo' -- to check whether the previously executed integer arithmetic operation
+-- addition or multiplication -- caused overflow or not.
+
+Strangely enough, for the case of integer substraction operations, none of GCC
+(up to the latest 11.2) generate the simpler code:
+
+          .cfi_startproc
+          movq    %rdi, %rax
+          subq    %rsi, %rax
+          jc      .L10
+          ret
+  .L10:
+          ...
+          call    assert_failed
+          .cfi_endproc
 
 
 5. References
