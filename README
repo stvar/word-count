@@ -172,7 +172,7 @@ Currently, the configuration parameters of Word-Count are as shown:
           movq    %rdi, %rax
           addq    %rsi, %rax
           jc      .error
-          rep ret
+          ret
       .error:
           ...
           call    assert_failed
@@ -554,7 +554,7 @@ checking builtins.
   subq    $8, %rsp
   .cfi_def_cfa_offset 16
   movl    $.LC0, %ecx
-  movl    $__func__.2862, %edx
+  movl    $__func__.0, %edx
   movl    $384, %esi
   movl    $.LC1, %edi
   call    assert_failed
@@ -573,7 +573,7 @@ checking builtins.
   subq    $8, %rsp
   .cfi_def_cfa_offset 16
   movl    $.LC0, %ecx
-  movl    $__func__.2862, %edx
+  movl    $__func__.0, %edx
   movl    $384, %esi
   movl    $.LC1, %edi
   call    assert_failed
@@ -591,10 +591,10 @@ checking builtins.
   imulq    %rdi, %rax
   ret
   .L13:
-  subq    $8, %rsp
+  pushq   %rax
   .cfi_def_cfa_offset 16
   movl    $.LC0, %ecx
-  movl    $__func__.2862, %edx
+  movl    $__func__.0, %edx
   movl    $384, %esi
   movl    $.LC1, %edi
   call    assert_failed
@@ -617,12 +617,12 @@ an actual overflow (except for subtraction operations on x86-64 platforms):
   movq    %rdi, %rax
   addq    %rsi, %rax
   jc      .L10
-  rep ret
+  ret
   .L10:
-  subq    $8, %rsp
+  pushq   %rax
   .cfi_def_cfa_offset 16
   movl    $.LC0, %ecx
-  movl    $__func__.2862, %edx
+  movl    $__func__.0, %edx
   movl    $384, %esi
   movl    $.LC1, %edi
   call    assert_failed
@@ -631,16 +631,15 @@ an actual overflow (except for subtraction operations on x86-64 platforms):
   $ uint-overflow sub|gcc-asm -O3 -DCONFIG_USE_OVERFLOW_BUILTINS
   .cfi_startproc
   movq    %rdi, %rax
-  subq    %rsi, %rax
+  cmpq    %rsi, %rdi
   jb      .L10
-  movq    %rdi, %rax
   subq    %rsi, %rax
   ret
   .L10:
-  subq    $8, %rsp
+  pushq   %rax
   .cfi_def_cfa_offset 16
   movl    $.LC0, %ecx
-  movl    $__func__.2862, %edx
+  movl    $__func__.0, %edx
   movl    $384, %esi
   movl    $.LC1, %edi
   call    assert_failed
@@ -651,12 +650,12 @@ an actual overflow (except for subtraction operations on x86-64 platforms):
   movq    %rdi, %rax
   mulq    %rsi
   jo      .L10
-  rep ret
+  ret
   .L10:
-  subq    $8, %rsp
+  pushq   %rax
   .cfi_def_cfa_offset 16
   movl    $.LC0, %ecx
-  movl    $__func__.2862, %edx
+  movl    $__func__.0, %edx
   movl    $384, %esi
   movl    $.LC1, %edi
   call    assert_failed
