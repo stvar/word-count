@@ -39,6 +39,10 @@ command lines as shown by 'word-count's own help info:
   $ ./word-count --help
   usage: word-count [OPTION...] DICT [TEXT...]
   where the options are:
+    -b|--io-buf-size=SIZE  the initial size of the memory buffers allocated
+                             for buffered I/O; SIZE is of form [0-9]+[KM]?,
+                             the default being 4K; the attached env var is
+                             $WORD_COUNT_IO_BUF_SIZE
     -m|--use-mmap-io=SPEC  use memory-mapped I/O instead of buffered I/O
                              as specified: either one of 'dict', 'text',
                              'none' or 'all'; the default is 'none'; '-'
