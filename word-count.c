@@ -56,7 +56,7 @@
 const char stdin_name[] = "<stdin>";
 
 const char program[] = STRINGIFY(PROGRAM);
-const char verdate[] = "0.3 -- 2021-12-20 13:04"; // $ date +'%F %R'
+const char verdate[] = "0.4 -- 2021-12-24 23:40"; // $ date +'%F %R'
 
 const char help[] =
 "usage: %s [OPTION...] DICT [TEXT...]\n"
