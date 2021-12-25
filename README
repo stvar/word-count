@@ -183,7 +183,7 @@ Currently, the configuration parameters of Word-Count are as shown:
           .cfi_endproc
 
      GCC does the very same kind of code generation optimization for subtraction
-     and multiplication operations too. (See the appendix below for details.)
+     and multiplication operations too. (See the section 4 below for details.)
 
   * 'CONFIG_USE_IO_BUF_LINEAR_GROWTH'
     For to reduce the number of memory allocation library calls (specifically
@@ -383,7 +383,7 @@ of Word-Count is as follows:
   It's worth noting that the class 'lhash_t' does not own the dictionary words
   it holds references of. The dictionary words are owned by the 'dict_t' class.
   The 'dict_t' class is delegating the management of its words to the instance
-  of 'mem_mgr_t class.
+  of 'mem_mgr_t' class.
 
   struct file_io_t
   ----------------
@@ -411,7 +411,7 @@ of Word-Count is as follows:
   in a buffered I/O fashion.
 
   struct lhash_t
-  -----------------
+  --------------
   The class implementing Word-Count's hash table, associating integer counters
   to dictionary words.
 
