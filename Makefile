@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Word-Count.  If not, see <http://www.gnu.org/licenses/>.
 
-.PHONY:: default clean allclean all
+.PHONY: default clean allclean all
 
 default: all
 
