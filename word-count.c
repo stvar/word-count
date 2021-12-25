@@ -61,6 +61,10 @@ const char verdate[] = "0.4 -- 2021-12-24 23:40"; // $ date +'%F %R'
 const char help[] =
 "usage: %s [OPTION...] DICT [TEXT...]\n"
 "where the options are:\n"
+"  -b|--io-buf-size=SIZE  the initial size of the memory buffers allocated\n"
+"                           for buffered I/O; SIZE is of form [0-9]+[KM]?,\n"
+"                           the default being 4K; the attached env var is\n"
+"                           $WORD_COUNT_IO_BUF_SIZE\n"
 "  -m|--use-mmap-io=SPEC  use memory-mapped I/O instead of buffered I/O\n"
 "                           as specified: either one of 'dict', 'text',\n"
 "                           'none' or 'all'; the default is 'none'; '-'\n"
@@ -1802,9 +1806,10 @@ void dict_print(
 
 struct options_t
 {
-    char const         *dict;
-    char const* const  *inputs;
-    size_t            n_inputs;
+    char const* dict;
+    char const* const* inputs;
+    size_t n_inputs;
+    size_t io_buf_size;
     bits_t dict_use_mmap_io: 1;
     bits_t text_use_mmap_io: 1;
 };
@@ -1814,6 +1819,121 @@ void options_invalid_opt_arg(
 {
     error("invalid argument for '%s' option: '%s'",
         opt_name, opt_arg);
+}
+
+void options_illegal_opt_arg(
+    const char* opt_name, const char* opt_arg)
+{
+    error("illegal argument for '%s' option: '%s'",
+        opt_name, opt_arg);
+}
+
+#if SIZE_MAX < ULONG_MAX
+size_t strtosz(
+    const char* ptr, char** end,
+    int base)
+{
+    unsigned long r;
+
+    errno = 0;
+    r = strtoul(ptr, end, base);
+
+    if (errno == 0 && r > SIZE_MAX)
+        errno = ERANGE;
+
+    return r;
+}
+#define OPTIONS_STR_TO_SIZE strtosz
+#elif SIZE_MAX == ULONG_MAX
+#define OPTIONS_STR_TO_SIZE strtoul
+#elif SIZE_MAX == UULONG_MAX
+#define OPTIONS_STR_TO_SIZE strtoull
+#else
+#error unexpected SIZE_MAX > UULONG_MAX
+#endif
+
+size_t options_parse_num(
+    const char* ptr, const char** end)
+{
+    if (UCHAR(*ptr) < '0' ||
+        UCHAR(*ptr) > '9') {
+        *end = ptr;
+        errno = EINVAL;
+        return 0;
+    }
+    errno = 0;
+    return OPTIONS_STR_TO_SIZE(
+        ptr, (char**) end,
+        10);
+}
+
+size_t options_parse_su_size_optarg(
+    const char* opt_name,
+    const char* opt_arg,
+    size_t min,
+    size_t max)
+{
+    const char *p, *q;
+    size_t n, v, d;
+
+    p = opt_arg;
+    n = strlen(p);
+    v = options_parse_num(p, &q);
+    d = PTR_DIFF(q, p);
+
+    if (errno ||
+        (d == 0) ||
+        (d < n - 1) ||
+        (d == n - 1 && *q != 'k' && *q != 'K' &&
+            *q != 'm' && *q != 'M'))
+        options_invalid_opt_arg(
+            opt_name,
+            opt_arg);
+
+    switch (*q) {
+    case 'm':
+    case 'M':
+        if (!UINT_MUL_NO_OVERFLOW(v, KB(1)))
+            options_illegal_opt_arg(
+                opt_name,
+                opt_arg);
+        v *= KB(1);
+        // FALLTHROUGH
+
+    case 'k':
+    case 'K':
+        if (!UINT_MUL_NO_OVERFLOW(v, KB(1)))
+            options_illegal_opt_arg(
+                opt_name,
+                opt_arg);
+        v *= KB(1);
+        break;
+    }
+
+    if ((min > 0 && v < min) ||
+        (max > 0 && v > max))
+        options_invalid_opt_arg(
+            opt_name,
+            opt_arg);
+
+    return v;
+}
+
+void options_parse_io_buf_size_optarg(
+    struct options_t* opts,
+    const char* opt_name,
+    const char* opt_arg)
+{
+    if (opt_name != NULL)
+        ASSERT(opt_arg != NULL);
+    else
+    if (opt_arg == NULL)
+        return;
+
+    opts->io_buf_size =
+        options_parse_su_size_optarg(
+            opt_name, opt_arg,
+            1, 0);
 }
 
 void options_parse_use_mmap_io_optarg(
@@ -1876,17 +1996,22 @@ void options_parse_use_mmap_io_optarg(
 const struct options_t*
     options(int argc, char** argv)
 {
-    static struct options_t opts;
+    static struct options_t opts = {
+        .io_buf_size = KB(4)
+    };
 
 #define GET_ENV(n) getenv("WORD_COUNT_" #n)
 
     // stev: partially initialize 'opts' from
     // the program's environment variable list
+    options_parse_io_buf_size_optarg(
+        &opts, NULL, GET_ENV(IO_BUF_SIZE));
     options_parse_use_mmap_io_optarg(
         &opts, NULL, GET_ENV(USE_MMAP_IO));
 
     enum {
         // stev: instance options:
+        io_buf_size_opt = 'b',
         use_mmap_io_opt = 'm',
 
         // stev: info options:
@@ -1895,12 +2020,13 @@ const struct options_t*
     };
 
     static const struct option longs[] = {
+        { "io-buf-size", 1,       0, io_buf_size_opt },
         { "use-mmap-io", 1,       0, use_mmap_io_opt },
         { "version",     0,       0, version_opt },
         { "help",        0, &optopt, help_opt },
         { 0,             0,       0, 0 }
     };
-    static const char shorts[] = ":m:";
+    static const char shorts[] = ":b:m:";
 
     struct bits_opts_t
     {
@@ -1941,6 +2067,11 @@ const struct options_t*
     while ((opt = getopt_long(
         argc, argv, shorts, longs, 0)) != EOF) {
         switch (opt) {
+        case io_buf_size_opt:
+            options_parse_io_buf_size_optarg(
+                &opts, "io-buf-size",
+                optarg);
+            break;
         case use_mmap_io_opt:
             options_parse_use_mmap_io_optarg(
                 &opts, "use-mmap-io",
