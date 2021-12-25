@@ -80,6 +80,7 @@ endif
 ifdef DEBUG
 CFLAGS += $(addprefix -DDEBUG_, ${DEBUG})
 endif
+
 # other build-time parameters
 
 ifdef OPT
