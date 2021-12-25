@@ -376,7 +376,7 @@ const char help[] =
         (size_t) __d;                   \
     })
 
-#define KB(x) (1024 * (x))
+#define KB(x) (1024 * SZ(x))
 #define MB(x) (1024 * KB(x))
 
 typedef unsigned bits_t;
