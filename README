@@ -471,7 +471,7 @@ Firstly, two helper shell functions:
   # uint-overflow [add|sub|mul]
   $ uint-overflow() {
     local n="${1:-add}"
-    local o;
+    local o
     case "$n" in
       add) o='+';;
       sub) o='-';;
@@ -533,7 +533,7 @@ Now, let see the code generated on an x86-64 platform for the above three kinds
 of functions 'f', when the functions do not make use of GCC's integer overflow
 checking builtins.
 
-  # meta-command
+  # meta-command:
   $ for n in add sub mul; do
       c="uint-overflow $n|gcc-asm -O3"
       echo "$ $c"
