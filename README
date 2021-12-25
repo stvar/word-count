@@ -230,7 +230,8 @@ by the help info it provides:
                              `-m|--use-mmap-io={-,+,dict|text}', along
                              with the following 'Makefile' parameters:
                                * no 'CONFIG', 'CONFIG+=USE_48BIT_PTR',
-                                 or 'CONFIG+=USE_OVERFLOW_BUILTINS';
+                                 or 'CONFIG+=USE_OVERFLOW_BUILTINS',
+                                 or 'CONFIG+=USE_IO_BUF_LINEAR_GROWTH';
                                * no 'SANITIZE', 'SANITIZE=address',
                                  or 'SANITIZE=undefined';
                                * no 'OPT' or 'OPT=3'
@@ -244,6 +245,10 @@ by the help info it provides:
     -e|--echo              echo the command line invoking the script
     -g|--valgrind          execute each 'word-count' instance under
                              'valgrind'
+    -b|--io-buf-size=SIZE  execute each 'word-count' instance with an
+                             environment variable $WORD_COUNT_IO_BUF_SIZE
+                             set to SIZE; it can be of form [0-9]+[KM]?;
+                             the default is 1
     -m|--use-mmap-io=SPEC  execute each 'word-count' instance with an
                              environment variable $WORD_COUNT_USE_MMAP_IO
                              set to SPEC; it can be either 'dict', 'text',
