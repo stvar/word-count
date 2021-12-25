@@ -1774,7 +1774,8 @@ void dict_count(
             struct lhash_node_t* e = NULL;
             if (lhash_lookup(&dict->hash, p, n, &e)) {
                 ASSERT(e != NULL);
-                ASSERT(e->val < UINT_MAX);
+                ASSERT_UINT_INC_NO_OVERFLOW(
+                    e->val);
                 e->val ++;
             }
 
