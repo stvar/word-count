@@ -181,6 +181,21 @@ Currently, the configuration parameters of Word-Count are as shown:
      GCC does the very same kind of code generation optimization for subtraction
      and multiplication operations too. (See the appendix below for details.)
 
+  * 'CONFIG_USE_IO_BUF_LINEAR_GROWTH'
+    For to reduce the number of memory allocation library calls (specifically
+    the number of calls to C library function 'realloc') Word-Count makes when
+    needing to extend dynamically the size of its I/O buffer, the program uses
+    the well-known technique of exponentially growing that buffer (that is that
+    each time when it needs to extend the space of the I/O buffer, the program
+    calls 'realloc' for to get a new buffer twice as big as the existing one).
+
+    This configuration parameter replaces that logic of I/O buffer growth with
+    one that grows the I/O buffer sizes linearly, with the increments given by
+    'word-count's command line options `-b|--io-buf-size'. The linear growing
+    scheme is inefficient, yet is of use when it comes to test the program's
+    I/O buffering algorithm, by having its I/O buffer growing at a constant
+    very small rate.
+
 The 'make' parameter 'SANITIZE=$SANITIZE' makes GCC receiving the argument
 `-fsanitize=$SANITIZE', where '$SANITIZE' can be 'address' or 'undefined'.
 
