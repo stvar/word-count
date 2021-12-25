@@ -28,7 +28,8 @@ where the actions are:
                            \`-m|--use-mmap-io={-,+,dict|text}', along
                            with the following 'Makefile' parameters:
                              * no 'CONFIG', 'CONFIG+=USE_48BIT_PTR',
-                               or 'CONFIG+=USE_OVERFLOW_BUILTINS';
+                               or 'CONFIG+=USE_OVERFLOW_BUILTINS',
+                               or 'CONFIG+=USE_IO_BUF_LINEAR_GROWTH';
                              * no 'SANITIZE', 'SANITIZE=address',
                                or 'SANITIZE=undefined';
                              * no 'OPT' or 'OPT=3'
@@ -249,7 +250,11 @@ $program -B${verbose:+ -v}${no_color:+ -c} -e$a"
         for p in '' \
             USE_48BIT_PTR \
             USE_OVERFLOW_BUILTINS \
-            USE_48BIT_PTR\ USE_OVERFLOW_BUILTINS; do
+            USE_IO_BUF_LINEAR_GROWTH \
+            USE_48BIT_PTR\ USE_OVERFLOW_BUILTINS \
+            USE_48BIT_PTR\ USE_IO_BUF_LINEAR_GROWTH \
+            USE_OVERFLOW_BUILTINS\ USE_IO_BUF_LINEAR_GROWTH \
+            USE_48BIT_PTR\ USE_OVERFLOW_BUILTINS\ USE_IO_BUF_LINEAR_GROWTH; do
             for s in '' address undefined; do
                 for o in '' 3; do
                     a=''
