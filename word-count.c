@@ -2050,7 +2050,7 @@ size_t options_parse_su_size_optarg(
 
     if ((min > 0 && v < min) ||
         (max > 0 && v > max))
-        options_invalid_opt_arg(
+        options_illegal_opt_arg(
             opt_name,
             opt_arg);
 
