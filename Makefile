@@ -61,6 +61,25 @@ ifdef CONFIG
 CFLAGS += $(addprefix -DCONFIG_, ${CONFIG})
 endif
 
+DBGS := FILE_BUF_GET_LINE
+
+ifdef DEBUG
+DEBUG_CHECK = $(call param-arg,debug,${DBGS},${DEBUG})
+ifneq (${DEBUG_CHECK},)
+$(error ${DEBUG_CHECK})
+endif
+endif
+
+ifdef DEBUG
+DEBUG_CHECK = $(call param-dup,debug,${DEBUG})
+ifneq (${DEBUG_CHECK},)
+$(error ${DEBUG_CHECK})
+endif
+endif
+
+ifdef DEBUG
+CFLAGS += $(addprefix -DDEBUG_, ${DEBUG})
+endif
 # other build-time parameters
 
 ifdef OPT
