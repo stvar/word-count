@@ -43,6 +43,10 @@ and the options are:
   -e|--echo              echo the command line invoking the script
   -g|--valgrind          execute each 'word-count' instance under
                            'valgrind'
+  -b|--io-buf-size=SIZE  execute each 'word-count' instance with an
+                           environment variable \$WORD_COUNT_IO_BUF_SIZE
+                           set to SIZE; it can be of form [0-9]+[KM]?;
+                           the default is 1
   -m|--use-mmap-io=SPEC  execute each 'word-count' instance with an
                            environment variable \$WORD_COUNT_USE_MMAP_IO
                            set to SPEC; it can be either 'dict', 'text',
@@ -116,11 +120,26 @@ echo=''
 no_color=''
 valgrind=''
 use_mmap_io=''
+io_buf_size='1'
 verbose=''
 args=''
 
 error()
-{ echo >&2 "${program##*/}: error: $@"; }
+{
+    local m
+    case "$1" in
+        -o) m="invalid command line option '$o'"
+            ;;
+        -a) m="argument for option '$o' not given"
+            ;;
+        -i) m="invalid argument '$a' for option '$o'"
+            ;;
+        *)	shift
+            m="$@"
+            ;;
+    esac	
+    echo >&2 "${program##*/}: error: $m"
+}
 
 parse-options()
 {
@@ -145,6 +164,31 @@ parse-options()
             -g|--valgrind)
                 valgrind='v'
                 ;;
+            -b*|--io-buf-size*)
+                if [ "${o:0:2}" == '-b' ]; then
+                    if [ "${#o}" -gt 2 ]; then
+                        a="${o:2}"
+                    else
+                        a="$2"
+                        shift
+                    fi
+                else
+                    if [ "${#o}" -eq 13 ]; then
+                        error -a
+                        return 1
+                    elif [ "${o:13:1}" != '=' ]; then
+                        error -o
+                        return 1
+                    else
+                        a="${o:14}"
+                    fi
+                fi
+                [[ "$a" != +([0-9])?([KM]) ]] && {
+                    error -i
+                    return 1
+                }
+                io_buf_size="$a"
+                ;;
             -m*|--use-mmap-io*)
                 if [ "${o:0:2}" == '-m' ]; then
                     if [ "${#o}" -gt 2 ]; then
@@ -155,17 +199,17 @@ parse-options()
                     fi
                 else
                     if [ "${#o}" -eq 13 ]; then
-                        error "argument for option '$o' not given"
+                        error -a
                         return 1
                     elif [ "${o:13:1}" != '=' ]; then
-                        error "unknown option '$o'"
+                        error -o
                         return 1
                     else
                         a="${o:14}"
                     fi
                 fi
                 [[ "$a" != @([-+]|dict|text|all|none) ]] && {
-                    error "invalid argument '$a' for option '$o'"
+                    error -i
                     return 1
                 }
                 use_mmap_io="$a"
@@ -176,7 +220,7 @@ parse-options()
             -\?|--help)
                 action='?'
                 ;;
-            -*)	error "unknown option '$1'"
+            -*)	error -o
                 return 1
                 ;;
             *)	quote o
@@ -383,6 +427,8 @@ test -n \"\$text_temp_file\" &&
 rm -f   \"\$text_temp_file\"" \
     RETURN
 
+    [ -n "$io_buf_size" ] &&
+    export WORD_COUNT_IO_BUF_SIZE="$io_buf_size"
     [ -n "$use_mmap_io" ] &&
     export WORD_COUNT_USE_MMAP_IO="$use_mmap_io"
 
