@@ -561,6 +561,7 @@ enum io_error_type_t {
     io_error_type_close,
     io_error_type_read,
     io_error_type_stat,
+    io_error_type_fadvise,
     io_error_type_mmap,
 };
 
@@ -585,6 +586,7 @@ void io_error_fmt(
         CASE(close),
         CASE(read),
         CASE(stat),
+        CASE(fadvise),
         CASE(mmap),
     };
 
@@ -623,60 +625,37 @@ void io_error_sys(
 struct mem_buf_node_t
 {
     struct mem_buf_node_t* prev;
-    size_t size;
-    size_t len;
-    char ptr[];
+    void* ptr;
 };
 
 struct mem_buf_node_t* mem_buf_node_create(
-    struct mem_buf_node_t* prev,
-    size_t size)
+    const char* ptr)
 {
-    size_t n = sizeof(struct mem_buf_node_t);
-    struct mem_buf_node_t* p;
-
-    ASSERT(size > 0);
-    ASSERT_UINT_ADD_NO_OVERFLOW(n, size);
-
-    p = malloc(n + size);
+    struct mem_buf_node_t* p =
+        malloc(sizeof *p);
     VERIFY(p != NULL);
 
-    p->prev = prev;
-    p->size = size;
-    p->len  = 0;
-
+    p->prev = NULL;
+    p->ptr = CONST_CAST(ptr, char);
     return p;
 }
 
 void mem_buf_node_destroy(
     struct mem_buf_node_t* node)
 {
+    free(node->ptr);
     free(node);
-}
-
-size_t mem_buf_node_get_free_space(
-    struct mem_buf_node_t* node)
-{
-    ASSERT(node->size > 0);
-    ASSERT_UINT_SUB_NO_OVERFLOW(
-        node->size, node->len);
-    return node->size - node->len;
 }
 
 struct mem_buf_t
 {
     struct mem_buf_node_t* last;
-    size_t min_size;
 };
 
 void mem_buf_init(
-    struct mem_buf_t* buf,
-    size_t min_size)
+    struct mem_buf_t* buf)
 {
-    ASSERT(min_size > 0);
-
     memset(buf, 0, sizeof *buf);
-    buf->min_size = min_size;
 }
 
 void mem_buf_done(struct mem_buf_t* buf)
@@ -691,41 +670,17 @@ void mem_buf_done(struct mem_buf_t* buf)
     }
 }
 
-const char* mem_buf_node_append(
-    struct mem_buf_node_t* node,
-    const char* str, size_t sz)
-{
-    ASSERT(sz > 0);
-
-    size_t n = mem_buf_node_get_free_space(node);
-    VERIFY(n >= sz);
-
-    // n => sz <=> size - len >= sz
-    //         <=> len + sz <= size
-    char* p = node->ptr + node->len;
-    memcpy(p, str, sz);
-    node->len += sz;
-    return p;
-}
-
-const char* mem_buf_append(
+void mem_buf_append(
     struct mem_buf_t* buf,
-    const char* str, size_t size)
+    const char* ptr)
 {
-    if (size == 0)
-        size = 1;
+    struct mem_buf_node_t* p;
 
-    size_t n = buf->last != NULL
-        ? mem_buf_node_get_free_space(buf->last)
-        : 0;
-    if (n < size) {
-        if (n < buf->min_size)
-            n = buf->min_size;
-        buf->last = mem_buf_node_create(buf->last, n);
-    }
+    p = mem_buf_node_create(ptr);
+    ASSERT(p != NULL);
 
-    ASSERT(buf->last != NULL);
-    return mem_buf_node_append(buf->last, str, size);
+    p->prev = buf->last;
+    buf->last = p;
 }
 
 enum mem_map_type_t {
@@ -841,12 +796,6 @@ struct mem_map_node_t* mem_map_append(
     return p;
 }
 
-struct mem_range_t
-{
-    const char* ptr;
-    size_t size;
-};
-
 enum mem_mgr_type_t {
     mem_mgr_type_buf,
     mem_mgr_type_map
@@ -860,43 +809,20 @@ struct mem_mgr_t
     };
     enum mem_mgr_type_t type;
 
-    void         *impl;
-    void        (*done)(void*);
-    const char* (*append)(void*,
-        struct mem_range_t);
+    void  *impl;
+    void (*done)(void*);
 };
 
-const char* mem_mgr_buf_append(
-    struct mem_buf_t* buf,
-    struct mem_range_t range)
-{
-    return mem_buf_append(
-        buf, range.ptr, range.size);
-}
-
-const char* mem_mgr_map_append(
-    struct mem_map_t* map,
-    struct mem_range_t range)
-{
-    mem_map_append(
-        map, range.ptr, range.size);
-    return range.ptr;
-}
-
-#define MEM_MGR_INIT(n, ...)          \
-    do {                              \
-        mem->type =                   \
-            mem_mgr_type_ ## n;       \
-        mem_ ## n ## _init(           \
-            mem->impl = &mem->n,      \
-            ## __VA_ARGS__);          \
-        mem->done =                   \
-            (void (*)(void*))         \
-            mem_ ## n ## _done;       \
-        mem->append =                 \
-            (const char* (*)(void*,   \
-                struct mem_range_t))  \
-            mem_mgr_ ## n ## _append; \
+#define MEM_MGR_INIT(n, ...)     \
+    do {                         \
+        mem->type =              \
+            mem_mgr_type_ ## n;  \
+        mem_ ## n ## _init(      \
+            mem->impl = &mem->n, \
+            ## __VA_ARGS__);     \
+        mem->done =              \
+            (void (*)(void*))    \
+            mem_ ## n ## _done;  \
     } while (0)
 
 void mem_mgr_init(
@@ -906,20 +832,13 @@ void mem_mgr_init(
     if (mapped)
         MEM_MGR_INIT(map);
     else
-        MEM_MGR_INIT(buf, MB(4));
+        MEM_MGR_INIT(buf);
 }
 
 void mem_mgr_done(
     struct mem_mgr_t* mem)
 {
     mem->done(mem->impl);
-}
-
-const char* mem_mgr_append(
-    struct mem_mgr_t* mem,
-    struct mem_range_t range)
-{
-    return mem->append(mem->impl, range);
 }
 
 #define MEM_MGR_AS_(t)            \
@@ -1325,12 +1244,17 @@ void lhash_print(
 
 struct file_buf_t
 {
+    struct mem_buf_t* mem;
     const char* name;
     const char* ctxt;
-    FILE* stream;
-    char* ptr;
+    size_t min_size;
+    int fd;
+    char* buf;
     size_t size;
+    size_t off;
     size_t len;
+    bits_t committed: 1;
+    bits_t eof: 1;
 };
 
 #define FILE_BUF_IO_ERROR(e) \
@@ -1338,77 +1262,327 @@ struct file_buf_t
 
 void file_buf_init(
     struct file_buf_t* file,
+    struct mem_buf_t* mem,
     const char* name,
-    const char* ctxt)
+    const char* ctxt,
+    size_t min_size)
 {
     memset(file, 0, sizeof *file);
+
+    file->mem = mem;
     file->name = name;
     file->ctxt = ctxt;
+    file->min_size = min_size
+        ? min_size
+        : KB(4);
 
-    if (name == NULL)
-        file->stream = stdin;
-    else {
-        file->stream = fopen(name, "r");
-        if (file->stream == NULL)
+    file->size = file->min_size;
+    file->buf = malloc(file->size);
+    VERIFY(file->buf != NULL);
+
+    if (name != NULL) {
+        file->fd = open(name, O_RDONLY);
+        if (file->fd < 0)
             FILE_BUF_IO_ERROR(open);
     }
+
+    struct stat s;
+    if (fstat(file->fd, &s) < 0)
+        FILE_BUF_IO_ERROR(stat);
+
+    if (!S_ISREG(s.st_mode))
+        return;
+
+    if (posix_fadvise(
+            file->fd, 0, s.st_size,
+            POSIX_FADV_SEQUENTIAL))
+        FILE_BUF_IO_ERROR(fadvise);
 }
 
 void file_buf_done(
     struct file_buf_t* file)
 {
-    if (file->ptr != NULL) {
+    if (!file->committed &&
+         file->buf != NULL) {
         ASSERT(file->size > 0);
-        free(file->ptr);
+        free(file->buf);
     }
-    if (file->name != NULL)
-        fclose(file->stream);
+    if (file->fd >= 0)
+        close(file->fd);
 }
+
+bool file_buf_read(
+    const struct file_buf_t* file,
+    char* buf, size_t len,
+    size_t* result)
+{
+    size_t n = 0;
+
+    ASSERT(buf != NULL);
+    ASSERT(len > 0);
+
+    do {
+        ssize_t r = read(
+            file->fd, buf, len);
+        if (r < 0)
+            FILE_BUF_IO_ERROR(read);
+
+        if (r == 0) {
+            *result = n;
+            return true;
+        }
+
+        size_t l = INT_AS_SIZE(r);
+        ASSERT(l <= len);
+
+        buf += l;
+        len -= l;
+
+        ASSERT_UINT_ADD_NO_OVERFLOW(
+            n, l);
+        n += l;
+    } while (len);
+
+    *result = n;
+    return false;
+}
+
+#ifdef DEBUG_FILE_BUF_GET_LINE
+const char* repr0(
+    const char* p, size_t n, size_t k)
+{
+    enum { N = 1024 };
+    static char buf[2][N];
+
+    VERIFY(k < 2);
+    char *q = buf[k], *e = q + (N - 1);
+
+#define REPR(c) ({ if (q >= e) goto out; *q ++ = (c); })
+
+    int s = snprintf(q, PTR_DIFF(e, q), "[%p]\"", p);
+    q += INT_AS_SIZE(s);
+
+    while (n --) {
+        char c = *p ++;
+        switch (c) {
+        case '\0':
+            REPR('\\'); REPR('0'); break;
+        case '\a':
+            REPR('\\'); REPR('a'); break;
+        case '\b':
+            REPR('\\'); REPR('b'); break;
+        case '\f':
+            REPR('\\'); REPR('f'); break;
+        case '\n':
+            REPR('\\'); REPR('n'); break;
+        case '\r':
+            REPR('\\'); REPR('r'); break;
+        case '\t':
+            REPR('\\'); REPR('t'); break;
+        case '\v':
+            REPR('\\'); REPR('v'); break;
+        case ' ' ... '~':
+            if (c != '"')
+                REPR(c);
+            else {
+                REPR('\\');
+                REPR('"');
+            }
+            break;
+        default:
+            s = snprintf(q, PTR_DIFF(e, q),
+                    "\\x%02x", *q);
+            q += INT_AS_SIZE(s);
+        }
+    }
+
+    REPR('"');
+#undef REPR
+
+out:
+    *q = 0;
+    return buf[k];
+}
+
+const char* repr(
+    const char* p, size_t n)
+{ return repr0(p, n, 1); }
+
+void file_buf_print_debug_head(
+    const struct file_buf_t* file, size_t id)
+{
+    fprintf(stderr, "!!! %s: #%zu: min=%zu size=%zu "
+        "committed=%d eof=%d off=%zu len=%zu buf=%s ",
+        file->ctxt, id, file->min_size, file->size,
+        file->committed, file->eof, file->off, file->len,
+        repr0(file->buf, file->off + file->len, 0));
+}
+
+void file_buf_print_debug(
+    const struct file_buf_t* file,
+    size_t id, const char* msg, ...)
+    PRINTF(3);
+
+void file_buf_print_debug(
+    const struct file_buf_t* file,
+    size_t id, const char* msg, ...)
+{
+    va_list args;
+
+    file_buf_print_debug_head(
+        file, id);
+
+    va_start(args, msg);
+    vfprintf(stderr, msg, args);
+    va_end(args);
+
+    fputc('\n', stderr);
+}
+
+#define FILE_BUF_PRINT_DEBUG_HEAD(i)          \
+    do {                                      \
+        file_buf_print_debug_head(file, i);   \
+    } while (0)
+#define FILE_BUF_PRINT_DEBUG_TAIL(m, ...)     \
+    do {                                      \
+        fprintf(stderr, m "\n", __VA_ARGS__); \
+    } while (0)
+#define FILE_BUF_PRINT_DEBUG(i, m, ...)       \
+    do {                                      \
+        file_buf_print_debug(file, i, m,      \
+            ## __VA_ARGS__);                  \
+    } while (0)
+#else  // DEBUG_FILE_BUF_GET_LINE
+#define FILE_BUF_PRINT_DEBUG_HEAD(i)          \
+    do {} while (0)
+#define FILE_BUF_PRINT_DEBUG_TAIL(m, ...)     \
+    do {} while (0)
+#define FILE_BUF_PRINT_DEBUG(i, m, ...)       \
+    do {} while (0)
+#endif // DEBUG_FILE_BUF_GET_LINE
 
 bool file_buf_get_line(
     struct file_buf_t* file,
     char const** ptr,
     size_t* len)
 {
-    errno = 0;
-    ssize_t r = getline(
-        &file->ptr, &file->size,
-        file->stream);
+    while (true) {
+        ASSERT_UINT_ADD_NO_OVERFLOW(
+            file->off, file->len);
+        // stev: main invariants:
+        ASSERT(file->off + file->len <=
+            file->size);
+        ASSERT(file->buf != NULL);
+        ASSERT(file->size > 0);
 
-    if (r < 0) {
-        if (errno)
-            FILE_BUF_IO_ERROR(read);
-        return false;
+        char* p = file->buf + file->off;
+
+        FILE_BUF_PRINT_DEBUG(1, "iterating p=%s",
+            repr(p, file->len));
+
+        char* q = memchr(p, '\n', file->len);
+        if (q != NULL || file->eof) {
+            if (!file->committed &&
+                file->mem != NULL) {
+                mem_buf_append(
+                    file->mem,
+                    file->buf);
+                file->committed = true;
+
+                FILE_BUF_PRINT_DEBUG(1,
+                    "committed %p",
+                    file->buf);
+            }
+
+            size_t d = q != NULL
+                ? PTR_DIFF(q, p)
+                : file->len;
+            *ptr = p;
+            *len = d;
+
+            if (q != NULL) {
+                ASSERT_UINT_INC_NO_OVERFLOW(d);
+                d ++;
+            }
+            file->off += d;
+            file->len -= d;
+
+            FILE_BUF_PRINT_DEBUG(2,
+                "returning %d len=%zu ptr=%s",
+                !file->eof || *len, *len,
+                repr(*ptr, *len));
+
+            return !file->eof || *len;
+        }
+        // => q == NULL && !file->eof
+
+        size_t s = file->size;
+#ifdef CONFIG_USE_IO_BUF_LINEAR_GROWTH
+        ASSERT_UINT_ADD_NO_OVERFLOW(
+            s, file->min_size);
+        s += file->min_size;
+#else
+        ASSERT_UINT_MUL_NO_OVERFLOW(
+            s, SZ(2));
+        s *= SZ(2);
+#endif
+
+        FILE_BUF_PRINT_DEBUG_HEAD(3);
+
+        char* b = realloc(
+            !file->committed ? file->buf : NULL, s);
+        VERIFY(b != NULL);
+
+        FILE_BUF_PRINT_DEBUG_TAIL(
+            "realloced (size=%zu) from %p to %p",
+            s, !file->committed ? file->buf : NULL, b);
+
+        if (file->committed) {
+            memcpy(b, p, file->len);
+            file->off = 0;
+        }
+        file->committed = false;
+        file->size = s;
+        file->buf = b;
+
+        size_t n = 0;
+        ASSERT_UINT_ADD_NO_OVERFLOW(
+            file->off, file->len);
+        size_t w = file->off + file->len;
+        ASSERT_UINT_SUB_NO_OVERFLOW(
+            file->size, w);
+        file->eof = file_buf_read(
+            file, file->buf + w,
+            file->size - w,
+            &n);
+        ASSERT(n <= file->size - w);
+
+        FILE_BUF_PRINT_DEBUG(4, "read n=%zu %s",
+            n, repr(file->buf + w, n));
+
+        // stev: from the assert above:
+        //     n <= size - w
+        // <=> n <= size - (off + len)
+        // <=> off + (len + n) <= size
+
+        // stev: therefore, after updating
+        // 'len += n' below, the invariant
+        // 'off + len <= size' is maintained
+        ASSERT_UINT_ADD_NO_OVERFLOW(
+            file->len, n);
+        file->len += n;
     }
-    // => r >= 0
-    file->len = r;
-
-    ASSERT(file->ptr != NULL);
-    ASSERT(file->size > 0);
-
-    ASSERT(file->len < file->size);
-    ASSERT(file->len > 0);
-
-    char* p = &file->ptr[file->len - 1];
-    if (*p == '\n') {
-        file->len --;
-        *p = 0;
-    }
-    // => ptr + len is valid &&
-    //    ptr[len] == 0
-
-    *ptr = file->ptr;
-    *len = file->len;
-    return true;
 }
 
 struct file_map_t
 {
+    struct mem_map_t* mem;
+    struct mem_map_node_t* node;
     const char* name;
     const char* ctxt;
-    struct mem_map_node_t map;
-    bits_t released: 1;
-    off_t line;
+    char* ptr;
+    size_t size;
+    size_t line;
 };
 
 #define FILE_MAP_IO_ERROR(e) \
@@ -1419,11 +1593,12 @@ struct file_map_t
 
 void file_map_init(
     struct file_map_t* file,
-    enum mem_map_type_t type,
+    struct mem_map_t* mem,
     const char* name,
     const char* ctxt)
 {
     memset(file, 0, sizeof *file);
+    file->mem  = mem;
     file->name = name;
     file->ctxt = ctxt;
 
@@ -1456,19 +1631,21 @@ void file_map_init(
     if (close(fd) < 0)
         FILE_MAP_IO_ERROR(close);
 
-    mem_map_node_init(
-        &file->map, ptr,
-        INT_AS_SIZE(size));
+    file->ptr  = ptr;
+    file->size = INT_AS_SIZE(size);
+    file->node = mem_map_append(
+        file->mem, file->ptr, file->size);
+    ASSERT(file->node != NULL);
+
     mem_map_node_set_type(
-        &file->map,
-        type);
+        file->node, mem_map_type_sequential);
 }
 
 void file_map_done(
-    struct file_map_t* file)
+    struct file_map_t* file UNUSED)
 {
-    if (!file->released)
-        mem_map_node_done(&file->map);
+    mem_map_node_set_type(
+        file->node, mem_map_type_random);
 }
 
 bool file_map_get_line(
@@ -1476,10 +1653,8 @@ bool file_map_get_line(
     char const** ptr,
     size_t* len)
 {
-    size_t sz =
-        INT_AS_SIZE(file->map.size);
-    size_t ln =
-        INT_AS_SIZE(file->line);
+    size_t sz = file->size;
+    size_t ln = file->line;
 
     // stev: main invariant:
     ASSERT(ln <= sz);
@@ -1489,7 +1664,7 @@ bool file_map_get_line(
         return false;
     // => n > 0
 
-    char* b = file->map.ptr + ln;
+    char* b = file->ptr + ln;
     char* p = memchr(b, '\n', n);
 
     size_t d = p != NULL
@@ -1508,18 +1683,6 @@ bool file_map_get_line(
     file->line += d;
 
     return true;
-}
-
-struct mem_range_t
-    file_map_release(struct file_map_t* file)
-{
-    ASSERT(!file->released);
-    file->released = true;
-
-    return (struct mem_range_t) {
-        .ptr  = file->map.ptr,
-        .size = file->map.size
-    };
 }
 
 enum file_io_type_t {
@@ -1560,17 +1723,23 @@ struct file_io_t
 
 void file_io_init(
     struct file_io_t* file,
+    struct mem_mgr_t* mem,
+    size_t io_buf_size,
     const char* name,
-    const char* ctxt,
-    bool mapped)
+    const char* ctxt)
 {
-    if (mapped)
-        FILE_IO_INIT(
-            map, mem_map_type_sequential,
+    if (mem != NULL &&
+        mem->type == mem_mgr_type_map)
+        FILE_IO_INIT(map,
+            mem_mgr_as_map(mem),
             name, ctxt);
     else
-        FILE_IO_INIT(
-            buf, name, ctxt);
+        FILE_IO_INIT(buf,
+            mem != NULL
+            ? mem_mgr_as_buf(mem)
+            : NULL,
+            name, ctxt,
+            io_buf_size);
 }
 
 void file_io_done(
@@ -1588,25 +1757,9 @@ bool file_io_get_line(
         file->impl, ptr, len);
 }
 
-#define FILE_IO_AS_(t)             \
-    ({                             \
-        VERIFY(                    \
-            file->type ==          \
-            file_io_type_ ## t);   \
-        (struct file_ ## t ## _t*) \
-            file->impl;            \
-    })
-
-struct file_buf_t*
-    file_io_as_buf(struct file_io_t* file)
-{ return FILE_IO_AS_(buf); }
-
-struct file_map_t*
-    file_io_as_map(struct file_io_t* file)
-{ return FILE_IO_AS_(map); }
-
 struct dict_t
 {
+    size_t io_buf_size;
     bits_t mapped_dict: 1;
     bits_t mapped_text: 1;
     struct mem_mgr_t mem;
@@ -1616,9 +1769,11 @@ struct dict_t
 
 void dict_init(
     struct dict_t* dict,
+    size_t io_buf_size,
     bool mapped_dict,
     bool mapped_text)
 {
+    dict->io_buf_size = io_buf_size;
     dict->mapped_dict = mapped_dict;
     dict->mapped_text = mapped_text;
 
@@ -1643,8 +1798,9 @@ void dict_load(
     const char* b;
 
     file_io_init(
-        &f, file_name, "dictionary",
-        dict->mapped_dict);
+        &f, &dict->mem,
+        dict->io_buf_size,
+        file_name, "dictionary");
 
     while (file_io_get_line(&f, &b, &k)) {
         const char *p;
@@ -1653,7 +1809,6 @@ void dict_load(
 
         if ((p = memchr(b, 0, k)) != NULL) {
             size_t d = PTR_DIFF(p, b);
-
             warning("NUL char in line #%zu: truncating "
                     "it from length %zu to %zu", l, k, d);
             k = d;
@@ -1677,34 +1832,8 @@ void dict_load(
                 l, SIZE_AS_INT(k), b);
         else {
             ASSERT(e != NULL);
-            if (!dict->mapped_dict) {
-                struct mem_buf_t* m =
-                    mem_mgr_as_buf(&dict->mem);
-                ASSERT(m != NULL);
-                b = mem_buf_append(m, b, k);
-            }
             LHASH_NODE_INIT(e, b, k);
         }
-    }
-
-    if (dict->mapped_dict) {
-        struct file_map_t* a = file_io_as_map(&f);
-        ASSERT(a != NULL);
-
-        struct mem_range_t r = file_map_release(a);
-        ASSERT(r.ptr != NULL);
-        ASSERT(r.size > 0);
-
-        struct mem_map_t* m =
-            mem_mgr_as_map(&dict->mem);
-        ASSERT(m != NULL);
-
-        struct mem_map_node_t* n =
-            mem_map_append(m, r.ptr, r.size);
-        ASSERT(n != NULL);
-
-        mem_map_node_set_type(
-            n, mem_map_type_random);
     }
 
     file_io_done(&f);
@@ -1754,13 +1883,19 @@ void dict_count(
         ['\0'] = 1
     };
 
+    struct mem_mgr_t m;
     struct file_io_t f;
     size_t w = 0, k;
     const char* p;
 
+    if (dict->mapped_text)
+        mem_mgr_init(&m, true);
+
     file_io_init(
-        &f, file_name, "input",
-        dict->mapped_text);
+        &f, dict->mapped_text
+            ? &m : NULL,
+        dict->io_buf_size,
+        file_name, "input");
 
     while (file_io_get_line(&f, &p, &k)) {
         while (k > 0) {
@@ -1790,6 +1925,9 @@ void dict_count(
     }
 
     file_io_done(&f);
+
+    if (dict->mapped_text)
+        mem_mgr_done(&m);
 
     ASSERT_UINT_ADD_NO_OVERFLOW(
         dict->n_words, w);
@@ -2152,6 +2290,7 @@ int main(int argc, char* argv[])
 
     struct dict_t dict;
     dict_init(&dict,
+        opt->io_buf_size,
         opt->dict_use_mmap_io,
         opt->text_use_mmap_io);
     dict_load(&dict, opt->dict);
