@@ -593,7 +593,7 @@ void io_error_fmt(
 
     b[sizeof b - 1] = 0;
 
-    error("failed %sing %s file '%s': %s",
+    error("%s failed: %s file '%s': %s",
         ARRAY_ELEM(types, type, "???"), ctxt,
         file != NULL ? file : stdin_name,
         b);
