@@ -399,22 +399,12 @@ of Word-Count is as follows:
   ----------------
   This is a class that's responsible for memory management of dictionary words
   stored in memory during a running instance of Word-Count. It wraps around the
-  *conceptually* defined abstract class of which interface is as follows:
+  *conceptually* defined abstract class of which interface is:
 
-    * void (*done)(void* this):
-      virtual destructor;
-
-    * const char* (*append)(void* this, struct mem_range_t range):
-      virtual method that appends to the implementation class the given range
-      of memory for that class to *manage* the respective memory. The meaning
-      of *manage* depends on the concrete class implementing the interface.
+    * void (*done)(void* this): virtual destructor.
 
   There are two concrete classes that implements the interface above: the class
   'mem_map_t' and the 'mem_buf_t'.
-
-  struct mem_range_t
-  ------------------
-  POD structure holding pairs of a pointer to a buffer and that buffer's size.
 
   struct mem_map_t
   ----------------
@@ -448,7 +438,7 @@ By design, Word-Count makes as few memory-related operations as possible. For
 example, the number of such operations needed for loading in a dictionary from
 an input file stream is minimized: see method 'dict_load', where there's only
 one hash table operation ('lhash_insert') and at most one call to 'memcpy' (in
-'mem_buf_node_append') per each input dictionary word, when the 'dict_t' class
+'file_buf_get_line') per each input dictionary word, when the 'dict_t' instance
 is using buffered I/O. When the 'dict_t' instance is told to use memory-mapped
 I/O, there's no 'memcpy', nor is any memory-write operation implied by loading
 in the input dictionary file.
