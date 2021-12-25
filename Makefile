@@ -35,19 +35,23 @@ CFLAGS := -Wall -Wextra -std=${GCC_STD} \
 
 # build-time configuration parameters
 
+param-arg = $(shell \
+    bash -c 'tr -s " \t" "\n" <<< "$3"|sed -nr "/^($2)$$/!{s/^/invalid $1 parameter: \x22/;s/$$/\x22/;p;q}"' 2>&1)
+
+param-dup = $(shell \
+    bash -c 'tr -s " \t" "\n" <<< "$2"|sed -r "s/=.+$$//"|sort|uniq -d|sed -nr "1{s/^/duplicated $1 parameter: \x22/;s/$$/\x22/;p;q}"' 2>&1)
+
 CFGS := USE_48BIT_PTR|USE_OVERFLOW_BUILTINS
 
 ifdef CONFIG
-CONFIG_CHECK = $(shell \
-    bash -c 'tr -s " \t" "\n" <<< "${CONFIG}"|sed -nr "/^(${CFGS})$$/!{s/^/invalid config parameter: \x22/;s/$$/\x22/;p;q}"' 2>&1)
+CONFIG_CHECK = $(call param-arg,config,${CFGS},${CONFIG})
 ifneq (${CONFIG_CHECK},)
 $(error ${CONFIG_CHECK})
 endif
 endif
 
 ifdef CONFIG
-CONFIG_CHECK = $(shell \
-    bash -c 'tr -s " \t" "\n" <<< "${CONFIG}"|sed -r "s/=.+$$//"|sort|uniq -d|sed -nr "1{s/^/duplicated config parameter: \x22/;s/$$/\x22/;p;q}"' 2>&1)
+CONFIG_CHECK = $(call param-dup,config,${CONFIG})
 ifneq (${CONFIG_CHECK},)
 $(error ${CONFIG_CHECK})
 endif
