@@ -1376,56 +1376,47 @@ bool file_buf_read(
 const char* repr0(
     const char* p, size_t n, size_t k)
 {
+    static const uchar_t repr[256] = {
+        ['\0'] = '0', ['\a'] = 'a', ['\b'] = 'b',
+        ['\f'] = 'f', ['\n'] = 'n', ['\r'] = 'r',
+        ['\t'] = 't', ['\v'] = 'v', ['"']  = '"'
+    };
+
     enum { N = 1024 };
     static char buf[2][N];
+
+    STATIC(CHAR_BIT == 8);
 
     VERIFY(k < 2);
     char *q = buf[k], *e = q + (N - 1);
 
-#define REPR(c) ({ if (q >= e) goto out; *q ++ = (c); })
-
-    int s = snprintf(q, PTR_DIFF(e, q), "[%p]\"", p);
+    int s = snprintf(
+                q, PTR_DIFF(e, q),
+                "[%p]\"", p);
     q += INT_AS_SIZE(s);
 
-    while (n --) {
-        char c = *p ++;
-        switch (c) {
-        case '\0':
-            REPR('\\'); REPR('0'); break;
-        case '\a':
-            REPR('\\'); REPR('a'); break;
-        case '\b':
-            REPR('\\'); REPR('b'); break;
-        case '\f':
-            REPR('\\'); REPR('f'); break;
-        case '\n':
-            REPR('\\'); REPR('n'); break;
-        case '\r':
-            REPR('\\'); REPR('r'); break;
-        case '\t':
-            REPR('\\'); REPR('t'); break;
-        case '\v':
-            REPR('\\'); REPR('v'); break;
-        case ' ' ... '~':
-            if (c != '"')
-                REPR(c);
-            else {
-                REPR('\\');
-                REPR('"');
-            }
-            break;
-        default:
-            s = snprintf(q, PTR_DIFF(e, q),
-                    "\\x%02x", *q);
+    while (n -- && q < e) {
+        uchar_t c = *p ++;
+        uchar_t r = repr[c];
+        if (!r && !ISPRINT(c)) {
+            s = snprintf(
+                    q, PTR_DIFF(e, q),
+                    "\\%02x", c);
             q += INT_AS_SIZE(s);
         }
+        else
+        if (r) {
+            *q ++ = '\\';
+            if (q >= e) break;
+            *q ++ = r;
+        }
+        else
+            *q ++ = c;
     }
-
-    REPR('"');
-#undef REPR
-
-out:
+    if (q < e)
+        *q ++ = '"';
     *q = 0;
+
     return buf[k];
 }
 
