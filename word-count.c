@@ -380,6 +380,31 @@ const char help[] =
         (size_t) __d;                   \
     })
 
+typedef unsigned char uchar_t;
+
+#define TYPEOF_IS_CHAR(c)     \
+    (                         \
+        TYPEOF_IS(c, char) || \
+        TYPEOF_IS(c, uchar_t) \
+    )
+
+#define UCHAR(c)                   \
+    (                              \
+        STATIC(TYPEOF_IS_CHAR(c)), \
+        (uchar_t) (c)              \
+    )
+
+#define ISPRINT_(c)             \
+    (                           \
+        (uchar_t) (c) >= ' ' && \
+        (uchar_t) (c) <= '~'    \
+    )
+#define ISPRINT(c)                 \
+    (                              \
+        STATIC(TYPEOF_IS_CHAR(c)), \
+        ISPRINT_(c)                \
+    )
+
 #define KB(x) (1024 * SZ(x))
 #define MB(x) (1024 * KB(x))
 
@@ -1838,12 +1863,6 @@ void dict_load(
 
     file_io_done(&f);
 }
-
-#define UCHAR(c)                    \
-    (                               \
-        STATIC(TYPEOF_IS(c, char)), \
-        (unsigned char) (c)         \
-    )
 
 typedef char ascii_table_t[256];
 
