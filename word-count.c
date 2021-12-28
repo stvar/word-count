@@ -876,11 +876,11 @@ void mem_mgr_done(
     })
 
 struct mem_buf_t*
-    mem_mgr_as_buf(struct mem_mgr_t* mem)
+    mem_mgr_as_buf(const struct mem_mgr_t* mem)
 { return MEM_MGR_AS_(buf); }
 
 struct mem_map_t*
-    mem_mgr_as_map(struct mem_mgr_t* mem)
+    mem_mgr_as_map(const struct mem_mgr_t* mem)
 { return MEM_MGR_AS_(map); }
 
 // http://www.isthe.com/chongo/tech/comp/fnv/index.html
