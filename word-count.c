@@ -94,6 +94,7 @@ const char help[] =
 "                             'none' or 'all'; the default is 'none'; '-'\n"
 "                             is a shortcut for 'none' and '+' for 'all';\n"
 "                             attached env var: $WORD_COUNT_USE_MMAP_IO\n"
+"     --[print-]config      print all config and debug parameters and exit\n"
 "     --version             print version numbers and exit\n"
 "  -?|--help                display this help info and exit\n";
 
@@ -2663,6 +2664,87 @@ enum options_action_t {
 
 #endif // CONFIG_COLLECT_STATISTICS
 
+void print_config(FILE* file)
+{
+    struct config_param_t
+    {
+        const char* name;
+        const char* val;
+    };
+
+#define PRINT_CONFIG__(v)      #v
+#define PRINT_CONFIG_(v)       PRINT_CONFIG__(v)
+#define PRINT_CONFIG_VAL(n, v) { .name = #n, .val = PRINT_CONFIG_(v) }
+#define PRINT_CONFIG_VAL_(t, n, v) PRINT_CONFIG_VAL(t ## _ ## n, v)
+#define PRINT_CONFIG_DEF(n)    PRINT_CONFIG_VAL_(CONFIG, n, yes)
+#define PRINT_CONFIG_UND(n)    PRINT_CONFIG_VAL_(CONFIG, n, no)
+#define PRINT_DEBUG_DEF(n)     PRINT_CONFIG_VAL_(DEBUG, n, yes)
+#define PRINT_DEBUG_UND(n)     PRINT_CONFIG_VAL_(DEBUG, n, no)
+
+    static const struct config_param_t params[] = {
+#if CONFIG_USE_HASH_ALGO == HASH_ALGO_FNV1
+        PRINT_CONFIG_VAL(CONFIG_USE_HASH_ALGO, FNV1),
+#elif CONFIG_USE_HASH_ALGO == HASH_ALGO_FNV1A
+        PRINT_CONFIG_VAL(CONFIG_USE_HASH_ALGO, FNV1A),
+#elif CONFIG_USE_HASH_ALGO == HASH_ALGO_MURMUR2
+        PRINT_CONFIG_VAL(CONFIG_USE_HASH_ALGO, MURMUR2),
+#elif CONFIG_USE_HASH_ALGO == HASH_ALGO_MURMUR3
+        PRINT_CONFIG_VAL(CONFIG_USE_HASH_ALGO, MURMUR3),
+#else
+        PRINT_CONFIG_VAL(CONFIG_USE_HASH_ALGO, -),
+#endif
+#ifndef CONFIG_USE_48BIT_PTR
+        PRINT_CONFIG_UND(USE_48BIT_PTR),
+#else
+        PRINT_CONFIG_DEF(USE_48BIT_PTR),
+#endif
+#ifndef CONFIG_USE_OVERFLOW_BUILTINS
+        PRINT_CONFIG_UND(USE_OVERFLOW_BUILTINS),
+#else
+        PRINT_CONFIG_DEF(USE_OVERFLOW_BUILTINS),
+#endif
+#ifndef CONFIG_USE_IO_BUF_LINEAR_GROWTH
+        PRINT_CONFIG_UND(USE_IO_BUF_LINEAR_GROWTH),
+#else
+        PRINT_CONFIG_DEF(USE_IO_BUF_LINEAR_GROWTH),
+#endif
+#ifndef CONFIG_COLLECT_STATISTICS
+        PRINT_CONFIG_UND(COLLECT_STATISTICS),
+#else
+        PRINT_CONFIG_DEF(COLLECT_STATISTICS),
+#endif
+#ifndef DEBUG
+        PRINT_DEBUG_UND(FILE_BUF_GET_LINE),
+#else
+        PRINT_DEBUG_DEF(FILE_BUF_GET_LINE),
+#endif
+#ifndef DEBUG
+        PRINT_CONFIG_VAL(DEBUG, no),
+#else
+        PRINT_CONFIG_VAL(DEBUG, yes),
+#endif
+    };
+
+    const struct config_param_t *p, *e;
+    size_t m = 0, l, w;
+
+    for (p = params,
+         e = params + ARRAY_SIZE(params);
+         p < e;
+         p ++) {
+        l = strlen(p->name);
+        if (m < l)
+            m = l;
+    }
+    for (p = params; p < e; p ++) {
+        l = strlen(p->name);
+        w = UINT_SUB(m, l);
+        fprintf(file, "%s:%-*s %s\n",
+            p->name, SIZE_AS_INT(w), "",
+            p->val);
+    }
+}
+
 struct options_t
 {
 #ifdef CONFIG_COLLECT_STATISTICS
@@ -2907,6 +2989,7 @@ const struct options_t*
         // stev: info options:
         help_opt          = '?',
         version_opt       = 128,
+        print_config_opt
     };
 
     static const struct option longs[] = {
@@ -2918,6 +3001,8 @@ const struct options_t*
         { "io-buf-size",   1,       0, io_buf_size_opt },
         { "hash-tbl-size", 1,       0, hash_tbl_size_opt },
         { "use-mmap-io",   1,       0, use_mmap_io_opt },
+        { "print-config",  0,       0, print_config_opt },
+        { "config",        0,       0, print_config_opt },
         { "version",       0,       0, version_opt },
         { "help",          0, &optopt, help_opt },
         { 0,               0,       0, 0 }
@@ -2931,10 +3016,12 @@ const struct options_t*
 
     struct bits_opts_t
     {
+        bits_t config: 1;
         bits_t usage: 1;
         bits_t version: 1;
     };
     struct bits_opts_t bits = {
+        .config = false,
         .usage = false,
         .version = false
     };
@@ -2994,6 +3081,9 @@ const struct options_t*
                 &opts, "use-mmap-io",
                 optarg);
             break;
+        case print_config_opt:
+            bits.config = true;
+            break;
         case version_opt:
             bits.version = true;
             break;
@@ -3044,8 +3134,11 @@ const struct options_t*
             program, verdate);
     if (bits.usage)
         printf(help, program);
+    if (bits.config)
+        print_config(stdout);
 
     if (bits.version ||
+        bits.config ||
         bits.usage)
         exit(0);
 
