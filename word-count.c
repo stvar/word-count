@@ -887,7 +887,7 @@ struct mem_map_t*
 { return MEM_MGR_AS_(map); }
 
 // http://www.isthe.com/chongo/tech/comp/fnv/index.html
-// FNV Hash
+// FNV Hash, by Landon Curt Noll
 
 #define LHASH_HASH_KEY(k, ...)     \
     ({                             \
