@@ -2055,7 +2055,6 @@ size_t options_parse_su_size_optarg(
                 opt_name,
                 opt_arg);
         v *= KB(1);
-        break;
     }
 
     if ((min > 0 && v < min) ||
