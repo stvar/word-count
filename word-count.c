@@ -59,19 +59,22 @@ const char program[] = STRINGIFY(PROGRAM);
 const char verdate[] = "0.4 -- 2021-12-24 23:40"; // $ date +'%F %R'
 
 const char help[] =
-"usage: %s [OPTION...] DICT [TEXT...]\n"
+"usage: %s [OPTION]... DICT [TEXT]...\n"
 "where the options are:\n"
-"  -b|--io-buf-size=SIZE  the initial size of the memory buffers allocated\n"
-"                           for buffered I/O; SIZE is of form [0-9]+[KM]?,\n"
-"                           the default being 4K; the attached env var is\n"
-"                           $WORD_COUNT_IO_BUF_SIZE\n"
-"  -m|--use-mmap-io=SPEC  use memory-mapped I/O instead of buffered I/O\n"
-"                           as specified: either one of 'dict', 'text',\n"
-"                           'none' or 'all'; the default is 'none'; '-'\n"
-"                           is a shortcut for 'none' and '+' for 'all';\n"
-"                           attached env var: $WORD_COUNT_USE_MMAP_IO\n"
-"     --version           print version numbers and exit\n"
-"  -?|--help              display this help info and exit\n";
+"  -b|--io-buf-size=SIZE    the initial size of the memory buffers allocated\n"
+"                             for buffered I/O; SIZE is of form [0-9]+[KM]?,\n"
+"                             the default being 4K; the attached env var is\n"
+"                             $WORD_COUNT_IO_BUF_SIZE\n"
+"  -h|--hash-tbl-size=SIZE  the initial number of hash table entries used;\n"
+"                             the default size is 1024; attached env var:\n"
+"                             $WORD_COUNT_HASH_TBL_SIZE\n"
+"  -m|--use-mmap-io=SPEC    use memory-mapped I/O instead of buffered I/O\n"
+"                             as specified: either one of 'dict', 'text',\n"
+"                             'none' or 'all'; the default is 'none'; '-'\n"
+"                             is a shortcut for 'none' and '+' for 'all';\n"
+"                             attached env var: $WORD_COUNT_USE_MMAP_IO\n"
+"     --version             print version numbers and exit\n"
+"  -?|--help                display this help info and exit\n";
 
 // >>> WORD_COUNT_COMMON
 
@@ -1786,6 +1789,7 @@ struct dict_t
 void dict_init(
     struct dict_t* dict,
     size_t io_buf_size,
+    size_t hash_tbl_size,
     bool mapped_dict,
     bool mapped_text)
 {
@@ -1794,7 +1798,7 @@ void dict_init(
     dict->mapped_text = mapped_text;
 
     mem_mgr_init(&dict->mem, mapped_dict);
-    lhash_init(&dict->hash, 1024);
+    lhash_init(&dict->hash, hash_tbl_size);
 
     dict->n_words = 0;
 }
@@ -1958,6 +1962,7 @@ struct options_t
     char const* const* inputs;
     size_t n_inputs;
     size_t io_buf_size;
+    size_t hash_tbl_size;
     bits_t dict_use_mmap_io: 1;
     bits_t text_use_mmap_io: 1;
 };
@@ -2066,21 +2071,35 @@ size_t options_parse_su_size_optarg(
     return v;
 }
 
+#define OPTIONS_PARSE_SU_SIZE_OPTARG(n)   \
+    do {                                  \
+        if (opt_name != NULL)             \
+            ASSERT(opt_arg != NULL);      \
+        else                              \
+        if (opt_arg == NULL)              \
+            return;                       \
+        opts->n =                         \
+            options_parse_su_size_optarg( \
+                opt_name, opt_arg,        \
+                1, 0);                    \
+    } while (0)
+
 void options_parse_io_buf_size_optarg(
     struct options_t* opts,
     const char* opt_name,
     const char* opt_arg)
 {
-    if (opt_name != NULL)
-        ASSERT(opt_arg != NULL);
-    else
-    if (opt_arg == NULL)
-        return;
+    OPTIONS_PARSE_SU_SIZE_OPTARG(
+        io_buf_size);
+}
 
-    opts->io_buf_size =
-        options_parse_su_size_optarg(
-            opt_name, opt_arg,
-            1, 0);
+void options_parse_hash_tbl_size_optarg(
+    struct options_t* opts,
+    const char* opt_name,
+    const char* opt_arg)
+{
+    OPTIONS_PARSE_SU_SIZE_OPTARG(
+        hash_tbl_size);
 }
 
 void options_parse_use_mmap_io_optarg(
@@ -2144,7 +2163,8 @@ const struct options_t*
     options(int argc, char** argv)
 {
     static struct options_t opts = {
-        .io_buf_size = KB(4)
+        .io_buf_size   = KB(4),
+        .hash_tbl_size = KB(1)
     };
 
 #define GET_ENV(n) getenv("WORD_COUNT_" #n)
@@ -2153,27 +2173,31 @@ const struct options_t*
     // the program's environment variable list
     options_parse_io_buf_size_optarg(
         &opts, NULL, GET_ENV(IO_BUF_SIZE));
+    options_parse_hash_tbl_size_optarg(
+        &opts, NULL, GET_ENV(HASH_TBL_SIZE));
     options_parse_use_mmap_io_optarg(
         &opts, NULL, GET_ENV(USE_MMAP_IO));
 
     enum {
         // stev: instance options:
-        io_buf_size_opt = 'b',
-        use_mmap_io_opt = 'm',
+        io_buf_size_opt   = 'b',
+        hash_tbl_size_opt = 'h',
+        use_mmap_io_opt   = 'm',
 
         // stev: info options:
-        help_opt        = '?',
-        version_opt     = 128
+        help_opt          = '?',
+        version_opt       = 128,
     };
 
     static const struct option longs[] = {
-        { "io-buf-size", 1,       0, io_buf_size_opt },
-        { "use-mmap-io", 1,       0, use_mmap_io_opt },
-        { "version",     0,       0, version_opt },
-        { "help",        0, &optopt, help_opt },
-        { 0,             0,       0, 0 }
+        { "io-buf-size",   1,       0, io_buf_size_opt },
+        { "hash-tbl-size", 1,       0, hash_tbl_size_opt },
+        { "use-mmap-io",   1,       0, use_mmap_io_opt },
+        { "version",       0,       0, version_opt },
+        { "help",          0, &optopt, help_opt },
+        { 0,               0,       0, 0 }
     };
-    static const char shorts[] = ":b:m:";
+    static const char shorts[] = ":b:h:m:";
 
     struct bits_opts_t
     {
@@ -2217,6 +2241,11 @@ const struct options_t*
         case io_buf_size_opt:
             options_parse_io_buf_size_optarg(
                 &opts, "io-buf-size",
+                optarg);
+            break;
+        case hash_tbl_size_opt:
+            options_parse_hash_tbl_size_optarg(
+                &opts, "hash-tbl-size",
                 optarg);
             break;
         case use_mmap_io_opt:
@@ -2300,6 +2329,7 @@ int main(int argc, char* argv[])
     struct dict_t dict;
     dict_init(&dict,
         opt->io_buf_size,
+        opt->hash_tbl_size,
         opt->dict_use_mmap_io,
         opt->text_use_mmap_io);
     dict_load(&dict, opt->dict);
