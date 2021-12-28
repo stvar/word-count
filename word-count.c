@@ -33,6 +33,11 @@
 #include <fcntl.h>
 #include <inttypes.h>
 
+#define HASH_ALGO_FNV1    0
+#define HASH_ALGO_FNV1A   1
+#define HASH_ALGO_MURMUR2 2
+#define HASH_ALGO_MURMUR3 3
+
 // >>> WORD_COUNT_COMMON
 
 #ifndef __GNUC__
@@ -889,20 +894,132 @@ struct mem_map_t*
 // http://www.isthe.com/chongo/tech/comp/fnv/index.html
 // FNV Hash, by Landon Curt Noll
 
-#define LHASH_HASH_KEY(k, ...)     \
-    ({                             \
-        uint32_t __c;              \
-        uint32_t __h = 2166136261; \
-        while ((__c = *key ++, ##  \
-            __VA_ARGS__)) {        \
-            __h *= 16777619;       \
-            __h ^= __c;            \
-        }                          \
-        __h;                       \
+#if CONFIG_USE_HASH_ALGO == HASH_ALGO_FNV1
+
+#define LHASH_HASH_KEY(k, l)          \
+    ({                                \
+        uint32_t __c;                 \
+        uint32_t __h = 2166136261;    \
+        while ((__c = *k ++, l --)) { \
+            __h *= 16777619;          \
+            __h ^= __c;               \
+        }                             \
+        __h;                          \
     })
 
+#endif // CONFIG_USE_HASH_ALGO == HASH_ALGO_FNV
+
+#if CONFIG_USE_HASH_ALGO == HASH_ALGO_FNV1A
+
+#define LHASH_HASH_KEY(k, l)          \
+    ({                                \
+        uint32_t __c;                 \
+        uint32_t __h = 2166136261;    \
+        while ((__c = *k ++, l --)) { \
+            __h ^= __c;               \
+            __h *= 16777619;          \
+        }                             \
+        __h;                          \
+    })
+
+#endif // CONFIG_USE_HASH_ALGO == HASH_ALGO_FNV1A
+
+// https://github.com/aappleby/smhasher
+// MurmurHash family of hash functions,
+// by Austin Appleby
+
+#if CONFIG_USE_HASH_ALGO == HASH_ALGO_MURMUR2
+
+#define LHASH_HASH_KEY(k, l)              \
+    ({                                    \
+        const uint32_t __m = 0x5bd1e995;  \
+        uint32_t __h = 0;                 \
+        const uchar_t* __d =              \
+            (const uchar_t*) k;           \
+        uint32_t __k;                     \
+        while (l >= 4) {                  \
+            __k = *(uint32_t*) __d;       \
+            __k *= __m;                   \
+            __k ^= __k >> 24;             \
+            __k *= __m;                   \
+            __h *= __m;                   \
+            __h ^= __k;                   \
+            __d += 4;                     \
+              l -= 4;                     \
+        }                                 \
+        switch (l) {                      \
+        case 3: __h ^= __d[2] << 16;      \
+                /* FALLTHROUGH */         \
+        case 2: __h ^= __d[1] << 8;       \
+                /* FALLTHROUGH */         \
+        case 1: __h ^= __d[0];            \
+                __h *= __m;               \
+        }                                 \
+        __h ^= __h >> 13;                 \
+        __h *= __m;                       \
+        __h ^= __h >> 15;                 \
+    })
+
+#endif // CONFIG_USE_HASH_ALGO == HASH_ALGO_MURMUR2
+
+#if CONFIG_USE_HASH_ALGO == HASH_ALGO_MURMUR3
+
+#define ROTL32(x, r)    \
+    (                   \
+        (x << r) |      \
+        (x >> (32 - r)) \
+    )
+
+#define LHASH_HASH_KEY(k, l)              \
+    ({                                    \
+        const uint8_t* __d =              \
+            (const uint8_t*) k;           \
+        const int __n = l / 4;            \
+        uint32_t __h = 0;                 \
+        const uint32_t __c1 = 0xcc9e2d51; \
+        const uint32_t __c2 = 0x1b873593; \
+        const uint32_t* __b =             \
+            (const uint32_t*)             \
+            (__d + __n * 4);              \
+        int __i;                          \
+        uint32_t __k;                     \
+        for (__i = - __n; __i; __i ++) {  \
+            __k = __b[__i];               \
+            __k *= __c1;                  \
+            __k = ROTL32(__k, 15);        \
+            __k *= __c2;                  \
+            __h ^= __k;                   \
+            __h = ROTL32(__h, 13);        \
+            __h *= 5;                     \
+            __h += 0xe6546b64;            \
+        }                                 \
+        const uint8_t* __t =              \
+            (const uint8_t*)              \
+            (__d + __n * 4);              \
+        __k = 0;                          \
+        switch (l & 3) {                  \
+        case 3: __k ^= __t[2] << 16;      \
+                /* FALLTHROUGH */         \
+        case 2: __k ^= __t[1] << 8;       \
+                /* FALLTHROUGH */         \
+        case 1: __k ^= __t[0];            \
+                __k *= __c1;              \
+                __k = ROTL32(__k, 15);    \
+                __k *= __c2;              \
+                __h ^= __k;               \
+        }                                 \
+        __h ^= l;                         \
+        __h ^= __h >> 16;                 \
+        __h *= 0x85ebca6b;                \
+        __h ^= __h >> 13;                 \
+        __h *= 0xc2b2ae35;                \
+        __h ^= __h >> 16;                 \
+    })
+
+#endif // CONFIG_USE_HASH_ALGO == HASH_ALGO_MURMUR3
+
 uint32_t lhash_hash_key(const char* key, size_t len)
-{ return LHASH_HASH_KEY(key, len --); }
+{ return LHASH_HASH_KEY(key, len); }
 
 struct lhash_node_t
 {
