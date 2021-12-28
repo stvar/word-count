@@ -29,7 +29,8 @@ where the actions are:
                            with the following 'Makefile' parameters:
                              * no 'CONFIG', 'CONFIG+=USE_48BIT_PTR',
                                or 'CONFIG+=USE_OVERFLOW_BUILTINS',
-                               or 'CONFIG+=USE_IO_BUF_LINEAR_GROWTH';
+                               or 'CONFIG+=USE_IO_BUF_LINEAR_GROWTH'
+                               or 'CONFIG+=MEMOIZE_KEY_HASHES';
                              * no 'SANITIZE', 'SANITIZE=address',
                                or 'SANITIZE=undefined';
                              * no 'OPT' or 'OPT=3'
@@ -294,10 +295,19 @@ $program -B${verbose:+ -v}${no_color:+ -c} -e$a"
             USE_48BIT_PTR \
             USE_OVERFLOW_BUILTINS \
             USE_IO_BUF_LINEAR_GROWTH \
+            MEMOIZE_KEY_HASHES \
             USE_48BIT_PTR\ USE_OVERFLOW_BUILTINS \
             USE_48BIT_PTR\ USE_IO_BUF_LINEAR_GROWTH \
+            USE_48BIT_PTR\ MEMOIZE_KEY_HASHES \
             USE_OVERFLOW_BUILTINS\ USE_IO_BUF_LINEAR_GROWTH \
-            USE_48BIT_PTR\ USE_OVERFLOW_BUILTINS\ USE_IO_BUF_LINEAR_GROWTH; do
+            USE_OVERFLOW_BUILTINS\ MEMOIZE_KEY_HASHES \
+            USE_IO_BUF_LINEAR_GROWTH\ MEMOIZE_KEY_HASHES \
+            USE_48BIT_PTR\ USE_OVERFLOW_BUILTINS\ USE_IO_BUF_LINEAR_GROWTH \
+            USE_48BIT_PTR\ USE_OVERFLOW_BUILTINS\ MEMOIZE_KEY_HASHES \
+            USE_48BIT_PTR\ USE_IO_BUF_LINEAR_GROWTH\ MEMOIZE_KEY_HASHES \
+            USE_OVERFLOW_BUILTINS\ USE_IO_BUF_LINEAR_GROWTH\ MEMOIZE_KEY_HASHES \
+            USE_48BIT_PTR\ USE_OVERFLOW_BUILTINS\ USE_IO_BUF_LINEAR_GROWTH\ MEMOIZE_KEY_HASHES
+        do
             for s in '' address undefined; do
                 for o in '' 3; do
                     a=''
