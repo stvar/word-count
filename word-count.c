@@ -1658,7 +1658,7 @@ void file_map_init(
 }
 
 void file_map_done(
-    struct file_map_t* file UNUSED)
+    struct file_map_t* file)
 {
     mem_map_node_set_type(
         file->node, mem_map_type_random);
