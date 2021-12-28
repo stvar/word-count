@@ -41,7 +41,10 @@ param-arg = $(shell \
 param-dup = $(shell \
     bash -c 'tr -s " \t" "\n" <<< "$2"|sed -r "s/=.+$$//"|sort|uniq -d|sed -nr "1{s/^/duplicated $1 parameter: \x22/;s/$$/\x22/;p;q}"' 2>&1)
 
-CFGS := USE_48BIT_PTR|USE_OVERFLOW_BUILTINS|USE_IO_BUF_LINEAR_GROWTH|MEMOIZE_KEY_HASHES
+param-norm = $(shell \
+    bash -c 'sed -r "s/\b(USE_([A-Z0-9_]+)=)([A-Z0-9_]+)\b/\1\2_\3/g" <<< "$1"' 2>&1)
+
+CFGS := USE_48BIT_PTR|USE_OVERFLOW_BUILTINS|USE_IO_BUF_LINEAR_GROWTH|MEMOIZE_KEY_HASHES|USE_HASH_ALGO=(FNV1|FNV1A|MURMUR2|MURMUR3)
 
 ifdef CONFIG
 CONFIG_CHECK = $(call param-arg,config,${CFGS},${CONFIG})
@@ -58,7 +61,7 @@ endif
 endif
 
 ifdef CONFIG
-CFLAGS += $(addprefix -DCONFIG_, ${CONFIG})
+CFLAGS += $(addprefix -DCONFIG_, $(call param-norm,${CONFIG}))
 endif
 
 DBGS := FILE_BUF_GET_LINE
