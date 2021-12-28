@@ -915,6 +915,9 @@ struct lhash_node_t
     const char* key;
     unsigned    len;
 #endif
+#ifdef CONFIG_MEMOIZE_KEY_HASHES
+    uint32_t    hash;
+#endif
     unsigned    val;
 };
 
@@ -1129,8 +1132,12 @@ void lhash_rehash(struct lhash_t* hash)
         if (k == NULL)
             continue;
 
+#ifndef CONFIG_MEMOIZE_KEY_HASHES
         unsigned l = LHASH_NODE_LEN(p);
         q = t + lhash_hash_key2(k, l) % s;
+#else
+        q = t + p->hash % s;
+#endif
 
         while (LHASH_NODE_KEY(q) != NULL) {
             if (q == t)
@@ -1218,6 +1225,9 @@ bool lhash_insert(
 new_node:
     // stev: hash->used < hash->size - 1
     hash->used ++;
+#ifdef CONFIG_MEMOIZE_KEY_HASHES
+    p->hash = h;
+#endif
 
     *result = p;
     return true;
