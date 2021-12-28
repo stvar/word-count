@@ -32,6 +32,10 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#ifdef CONFIG_COLLECT_STATISTICS
+#include <alloca.h>
+#include <time.h>
+#endif
 
 #define HASH_ALGO_FNV1    0
 #define HASH_ALGO_FNV1A   1
@@ -64,8 +68,20 @@ const char program[] = STRINGIFY(PROGRAM);
 const char verdate[] = "0.4 -- 2021-12-24 23:40"; // $ date +'%F %R'
 
 const char help[] =
+#ifdef CONFIG_COLLECT_STATISTICS
+"usage: %s [ACTION|OPTION]... DICT [TEXT]...\n"
+"where the actions are:\n"
+"  -L|--load-dict           only load dictionary and print out collected\n"
+"                             statistics data\n"
+"  -C|--count-words         count input words and print out counter/word\n"
+"                             pairs (default)\n"
+"  -S|--collect-stats       count input words, but print out only collected\n"
+"                             statistics data\n"
+"and the options are:\n"
+#else // CONFIG_COLLECT_STATISTICS
 "usage: %s [OPTION]... DICT [TEXT]...\n"
 "where the options are:\n"
+#endif // CONFIG_COLLECT_STATISTICS
 "  -b|--io-buf-size=SIZE    the initial size of the memory buffers allocated\n"
 "                             for buffered I/O; SIZE is of form [0-9]+[KM]?,\n"
 "                             the default being 4K; the attached env var is\n"
@@ -125,19 +141,22 @@ const char help[] =
 #endif
 
 #if __STDC_VERSION__ >= 201112L
-#define STATIC(E)                                   \
+#define STATIC_(E, ...)                             \
     ({                                              \
         _Static_assert((E), #E);                    \
+        __VA_ARGS__;                                \
     })
 #else
-#define STATIC(E)                                   \
+#define STATIC_(E, ...)                             \
     ({                                              \
         extern int __attribute__                    \
             ((error("assertion failed: '" #E "'"))) \
             static_assert();                        \
         (void) ((E) ? 0 : static_assert());         \
+        __VA_ARGS__;                                \
     })
 #endif
+#define STATIC(E) STATIC_(E, )
 
 #define TYPEOF(p) \
     typeof(p)
@@ -655,6 +674,164 @@ void io_error_sys(
 #define IO_ERROR_SYS(e, c, f) \
     io_error_sys(io_error_type_ ## e, c, f, errno)
 
+#ifdef CONFIG_COLLECT_STATISTICS
+
+#define TIME_NSECS SZ(1000000000)
+
+#define TIME_INIT(s)                  \
+    ({                                \
+        uint64_t __s, __n;            \
+        STATIC(TYPEOF_IS(s, struct    \
+            timespec));               \
+        __s = INT_AS_SIZE(s.tv_sec);  \
+        __n = INT_AS_SIZE(s.tv_nsec); \
+        ASSERT_UINT_MUL_NO_OVERFLOW(  \
+            __s, TIME_NSECS);         \
+        __s *= TIME_NSECS;            \
+        ASSERT_UINT_ADD_NO_OVERFLOW(  \
+            __s , __n);               \
+        __s + __n;                    \
+    })
+
+#define TIME_ADD(x, y)                     \
+    ({                                     \
+        STATIC(TYPEOF_IS(x, uint64_t));    \
+        STATIC(TYPEOF_IS(y, uint64_t));    \
+        ASSERT_UINT_ADD_NO_OVERFLOW(x, y); \
+        (x) += (y);                        \
+    })
+
+#define TIME_SUB(x, y)                     \
+    ({                                     \
+        STATIC(TYPEOF_IS(x, uint64_t));    \
+        STATIC(TYPEOF_IS(y, uint64_t));    \
+        ASSERT_UINT_SUB_NO_OVERFLOW(x, y); \
+        (x) -= (y);                        \
+    })
+
+uint64_t time_now()
+{
+    struct timespec t;
+    clock_gettime(CLOCK_REALTIME, &t);
+    return TIME_INIT(t);
+}
+
+uint64_t time_elapsed(uint64_t since)
+{
+    uint64_t now = time_now();
+    return TIME_SUB(now, since);
+}
+
+enum stat_param_type_t {
+    stat_param_type_size,
+    stat_param_type_time
+};
+
+struct stat_param_t
+{
+    const char* name;
+    enum stat_param_type_t type;
+    size_t offset;
+};
+
+#define STAT_PARAM_TYPE_(s, n, t) \
+        STATIC_(TYPEOF_IS(((struct s*) NULL)->n, t), 0)
+#define STAT_PARAM_TYPE_size_(s, n) \
+        STAT_PARAM_TYPE_(s, n, size_t)
+#define STAT_PARAM_TYPE_time_(s, n) \
+        STAT_PARAM_TYPE_(s, n, uint64_t)
+#define STAT_PARAM_TYPE(s, n, t) \
+        STAT_PARAM_TYPE_ ## t ## _(s, n)
+
+#define STAT_PARAM_OFFSET(s, n, t) \
+    (                              \
+        STAT_PARAM_TYPE(s, n, t) + \
+        offsetof(struct s, n)      \
+    )
+#define STAT_PARAM_DEF(s, n, t)              \
+    {                                        \
+        .name = #n,                          \
+        .type = stat_param_type_ ## t,       \
+        .offset = STAT_PARAM_OFFSET(s, n, t) \
+    }
+
+#define STAT_PARAM_VAL_(p, t)       \
+    ({                              \
+        STATIC(TYPEOF_IS(p, const   \
+            struct stat_param_t*)); \
+        *(t const*) (               \
+            ((uchar_t*) obj) +      \
+            p->offset               \
+        );                          \
+    })
+#define STAT_PARAM_VAL_SIZE(p) \
+        STAT_PARAM_VAL_(p, size_t)
+#define STAT_PARAM_VAL_TIME(p) \
+        STAT_PARAM_VAL_(p, uint64_t)
+
+void stat_params_print(
+    const struct stat_param_t* params,
+    size_t n_params, const void* obj,
+    const char* ctxt, const char* name,
+    FILE* file)
+{
+    const struct stat_param_t *p, *e;
+
+    for (p = params,
+         e = p + n_params;
+         p < e;
+         p ++) {
+        size_t w = 23;
+
+        size_t l0 = ctxt != NULL
+            ? strlen(ctxt) : 0;
+        size_t l1 =
+            strlen(name);
+        size_t l2 =
+            strlen(p->name);
+
+        // stev: +1 due to '.' after ctxt
+        size_t l = l0 + 1;
+        // stev: +1 due to '.' after name
+        UINT_ADD_EQ(l, l1 + 1);
+        // stev: +1 due to '\0' after p->name
+        UINT_ADD_EQ(l, l2 + 1);
+
+        char* b = alloca(l);
+        int s = ctxt != NULL
+            ? snprintf(b, l, "%s.%s.%s",
+                ctxt, name, p->name)
+            : snprintf(b, l, "%s.%s",
+                name, p->name);
+        size_t n = INT_AS_SIZE(s);
+        ASSERT(n < l);
+
+        UINT_SUB_EQ(w, n);
+        fprintf(file, "%s:%-*s ",
+            b, SIZE_AS_INT(w), "");
+
+        switch (p->type) {
+
+        case stat_param_type_size:
+            fprintf(file, "%zu\n",
+                STAT_PARAM_VAL_SIZE(p));
+            break;
+
+        case stat_param_type_time: {
+            uint64_t v = STAT_PARAM_VAL_TIME(p);
+            fprintf(file, "%" PRIu64 ".%09" PRIu64 "s\n",
+                v / TIME_NSECS, v % TIME_NSECS);
+            break;
+        }
+
+        default:
+            UNEXPECT_VAR("%d", p->type);
+        }
+    }
+}
+
+#endif // CONFIG_COLLECT_STATISTICS
+
 struct mem_buf_node_t
 {
     struct mem_buf_node_t* prev;
@@ -1035,12 +1212,28 @@ struct lhash_node_t
     unsigned    val;
 };
 
+#ifdef CONFIG_COLLECT_STATISTICS
+struct lhash_stats_t
+{
+    uint64_t rehash_time;
+    size_t   rehash_count;
+    size_t   rehash_hit;
+    size_t   insert_hit;
+    size_t   lookup_time;
+    size_t   lookup_eq;
+    size_t   lookup_ne;
+};
+#endif
+
 struct lhash_t
 {
     struct lhash_node_t* table;
     size_t max_load;
     size_t size;
     size_t used;
+#ifdef CONFIG_COLLECT_STATISTICS
+    struct lhash_stats_t stats;
+#endif
 };
 
 #define LHASH_MUL_FRAC_(v, n, d)    \
@@ -1225,6 +1418,10 @@ void lhash_rehash(struct lhash_t* hash)
     struct lhash_node_t *t, *p, *e, *q;
     size_t s;
 
+#ifdef CONFIG_COLLECT_STATISTICS
+    uint64_t c = time_now();
+#endif
+
     LHASH_ASSERT_INVARIANTS(hash);
 
     s = hash->size;
@@ -1254,6 +1451,9 @@ void lhash_rehash(struct lhash_t* hash)
 #endif
 
         while (LHASH_NODE_KEY(q) != NULL) {
+#ifdef CONFIG_COLLECT_STATISTICS
+            hash->stats.rehash_hit ++;
+#endif
             if (q == t)
                 q += s - 1;
             else
@@ -1270,6 +1470,13 @@ void lhash_rehash(struct lhash_t* hash)
     hash->max_load = LHASH_MAX_LOAD();
     // the new size > the old size =>
     // the invariants are preserved
+
+#ifdef CONFIG_COLLECT_STATISTICS
+    TIME_ADD(
+        hash->stats.rehash_time,
+        time_elapsed(c));
+    hash->stats.rehash_count ++;
+#endif
 }
 
 #define LHASH_NODE_KEY_EQ(p, k, l) \
@@ -1330,6 +1537,9 @@ bool lhash_insert(
     p = hash->table + h % hash->size;
 
     while (LHASH_NODE_KEY(p) != NULL) {
+#ifdef CONFIG_COLLECT_STATISTICS
+        hash->stats.insert_hit ++;
+#endif
         if (p == hash->table)
             p += hash->size - 1;
         else
@@ -1354,6 +1564,12 @@ bool lhash_lookup(
 {
     struct lhash_node_t* p;
 
+#ifdef CONFIG_COLLECT_STATISTICS
+    struct lhash_t* this = CONST_CAST(
+        hash, struct lhash_t);
+    uint64_t c = time_now();
+#endif
+
     ASSERT(key != NULL);
     LHASH_ASSERT_INVARIANTS(hash);
 
@@ -1362,6 +1578,12 @@ bool lhash_lookup(
 
     while (LHASH_NODE_KEY(p) != NULL) {
         if (LHASH_NODE_KEY_EQ(p, key, len)) {
+#ifdef CONFIG_COLLECT_STATISTICS
+            TIME_ADD(
+                this->stats.lookup_time,
+                time_elapsed(c));
+            this->stats.lookup_eq ++;
+#endif
             *result = p;
             return true;
         }
@@ -1371,6 +1593,12 @@ bool lhash_lookup(
             p --;
     }
 
+#ifdef CONFIG_COLLECT_STATISTICS
+    TIME_ADD(
+        this->stats.lookup_time,
+        time_elapsed(c));
+    this->stats.lookup_ne ++;
+#endif
     *result = NULL;
     return false;
 }
@@ -1394,6 +1622,44 @@ void lhash_print(
     }
 }
 
+#ifdef CONFIG_COLLECT_STATISTICS
+
+void lhash_print_stats(
+    const struct lhash_t* hash,
+    const char* name, FILE* file)
+{
+#undef  CASE
+#define CASE(n, t) \
+    STAT_PARAM_DEF(lhash_stats_t, n, t)
+    static const struct stat_param_t params[] = {
+        CASE(rehash_time,  time),
+        CASE(rehash_count, size),
+        CASE(rehash_hit,   size),
+        CASE(insert_hit,   size),
+        CASE(lookup_time,  time),
+        CASE(lookup_eq,    size),
+        CASE(lookup_ne,    size),
+    };
+
+    stat_params_print(
+        params, ARRAY_SIZE(params),
+        &hash->stats, name, "hash",
+        file);
+}
+
+struct file_buf_stats_t
+{
+    size_t   read_count;
+    size_t   commit_count;
+    uint64_t realloc_time;
+    size_t   realloc_count;
+    size_t   memcpy_bytes;
+    size_t   memcpy_count;
+    uint64_t getline_time;
+};
+
+#endif // CONFIG_COLLECT_STATISTICS
+
 struct file_buf_t
 {
     struct mem_buf_t* mem;
@@ -1407,6 +1673,9 @@ struct file_buf_t
     size_t len;
     bits_t committed: 1;
     bits_t eof: 1;
+#ifdef CONFIG_COLLECT_STATISTICS
+    struct file_buf_stats_t stats;
+#endif
 };
 
 #define FILE_BUF_IO_ERROR(e) \
@@ -1470,12 +1739,20 @@ bool file_buf_read(
 {
     size_t n = 0;
 
+#ifdef CONFIG_COLLECT_STATISTICS
+    struct file_buf_t* this = CONST_CAST(
+        file, struct file_buf_t);
+#endif
+
     ASSERT(buf != NULL);
     ASSERT(len > 0);
 
     do {
         ssize_t r = read(
             file->fd, buf, len);
+#ifdef CONFIG_COLLECT_STATISTICS
+        this->stats.read_count ++;
+#endif
         if (r < 0)
             FILE_BUF_IO_ERROR(read);
 
@@ -1609,6 +1886,10 @@ bool file_buf_get_line(
     char const** ptr,
     size_t* len)
 {
+#ifdef CONFIG_COLLECT_STATISTICS
+    uint64_t c = time_now();
+#endif
+
     while (true) {
         ASSERT_UINT_ADD_NO_OVERFLOW(
             file->off, file->len);
@@ -1635,6 +1916,9 @@ bool file_buf_get_line(
                 FILE_BUF_PRINT_DEBUG(1,
                     "committed %p",
                     file->buf);
+#ifdef CONFIG_COLLECT_STATISTICS
+                file->stats.commit_count ++;
+#endif
             }
 
             size_t d = q != NULL
@@ -1655,6 +1939,11 @@ bool file_buf_get_line(
                 !file->eof || *len, *len,
                 repr(*ptr, *len));
 
+#ifdef CONFIG_COLLECT_STATISTICS
+            TIME_ADD(
+                file->stats.getline_time,
+                time_elapsed(c));
+#endif
             return !file->eof || *len;
         }
         // => q == NULL && !file->eof
@@ -1672,8 +1961,17 @@ bool file_buf_get_line(
 
         FILE_BUF_PRINT_DEBUG_HEAD(3);
 
+#ifdef CONFIG_COLLECT_STATISTICS
+        uint64_t c2 = time_now();
+#endif
         char* b = realloc(
             !file->committed ? file->buf : NULL, s);
+#ifdef CONFIG_COLLECT_STATISTICS
+        TIME_ADD(
+            file->stats.realloc_time,
+            time_elapsed(c2));
+        file->stats.realloc_count ++;
+#endif
         VERIFY(b != NULL);
 
         FILE_BUF_PRINT_DEBUG_TAIL(
@@ -1683,6 +1981,12 @@ bool file_buf_get_line(
         if (file->committed) {
             memcpy(b, p, file->len);
             file->off = 0;
+#ifdef CONFIG_COLLECT_STATISTICS
+            ASSERT_UINT_ADD_NO_OVERFLOW(
+                file->stats.memcpy_bytes, file->len);
+            file->stats.memcpy_bytes += file->len;
+            file->stats.memcpy_count ++;
+#endif
         }
         file->committed = false;
         file->size = s;
@@ -1717,6 +2021,48 @@ bool file_buf_get_line(
     }
 }
 
+#ifdef CONFIG_COLLECT_STATISTICS
+
+void file_buf_stats_init(
+    struct file_buf_stats_t* stats,
+    const struct file_buf_t* file)
+{
+    if (file != NULL)
+        memcpy(stats, &file->stats, sizeof *stats);
+    else
+        memset(stats, 0, sizeof *stats);
+}
+
+void file_buf_stats_print(
+    const struct file_buf_stats_t* stats,
+    const char* name, FILE* file)
+{
+#undef  CASE
+#define CASE(n, t) \
+    STAT_PARAM_DEF(file_buf_stats_t, n, t)
+    static const struct stat_param_t params[] = {
+        CASE(read_count,    size),
+        CASE(commit_count,  size),
+        CASE(realloc_time,  time),
+        CASE(realloc_count, size),
+        CASE(memcpy_bytes,  size),
+        CASE(memcpy_count,  size),
+        CASE(getline_time,  time),
+    };
+
+    stat_params_print(
+        params, ARRAY_SIZE(params),
+        stats, name, "buf",
+        file);
+}
+
+struct file_map_stats_t
+{
+    uint64_t getline_time;
+};
+
+#endif // CONFIG_COLLECT_STATISTICS
+
 struct file_map_t
 {
     struct mem_map_t* mem;
@@ -1726,6 +2072,9 @@ struct file_map_t
     char* ptr;
     size_t size;
     size_t line;
+#ifdef CONFIG_COLLECT_STATISTICS
+    struct file_buf_stats_t stats;
+#endif
 };
 
 #define FILE_MAP_IO_ERROR(e) \
@@ -1741,6 +2090,7 @@ void file_map_init(
     const char* ctxt)
 {
     memset(file, 0, sizeof *file);
+
     file->mem  = mem;
     file->name = name;
     file->ctxt = ctxt;
@@ -1796,6 +2146,10 @@ bool file_map_get_line(
     char const** ptr,
     size_t* len)
 {
+#ifdef CONFIG_COLLECT_STATISTICS
+    uint64_t c = time_now();
+#endif
+
     size_t sz = file->size;
     size_t ln = file->line;
 
@@ -1803,8 +2157,14 @@ bool file_map_get_line(
     ASSERT(ln <= sz);
     size_t n = sz - ln;
 
-    if (n == 0)
+    if (n == 0) {
+#ifdef CONFIG_COLLECT_STATISTICS
+        TIME_ADD(
+            file->stats.getline_time,
+            time_elapsed(c));
+#endif
         return false;
+    }
     // => n > 0
 
     char* b = file->ptr + ln;
@@ -1825,8 +2185,68 @@ bool file_map_get_line(
     //        <=> ln + d <= sz
     file->line += d;
 
+#ifdef CONFIG_COLLECT_STATISTICS
+    TIME_ADD(
+        file->stats.getline_time,
+        time_elapsed(c));
+#endif
     return true;
 }
+
+#ifdef CONFIG_COLLECT_STATISTICS
+
+void file_map_stats_init(
+    struct file_map_stats_t* stats,
+    const struct file_map_t* map)
+{
+    memcpy(stats, &map->stats, sizeof *stats);
+}
+
+void file_map_stats_print(
+    const struct file_map_stats_t* stats,
+    const char* name, FILE* file)
+{
+#undef  CASE
+#define CASE(n, t) \
+    STAT_PARAM_DEF(file_map_stats_t, n, t)
+    static const struct stat_param_t params[] = {
+        CASE(getline_time, time),
+    };
+
+    stat_params_print(
+        params, ARRAY_SIZE(params),
+        stats, name, "map",
+        file);
+}
+
+enum file_io_stats_type_t {
+    file_io_stats_type_null,
+    file_io_stats_type_buf,
+    file_io_stats_type_map
+};
+
+struct file_io_stats_t
+{
+    union {
+        struct {}               null;
+        struct file_buf_stats_t buf;
+        struct file_map_stats_t map;
+    };
+    enum file_io_stats_type_t type;
+
+    void (*print)(
+        const void*,
+        const char*,
+        FILE*);
+};
+
+void file_null_stats_print(
+    const struct file_io_stats_t* stats UNUSED,
+    const char* name UNUSED,
+    FILE* file UNUSED)
+{ /* stev: nop */ }
+
+#endif // CONFIG_COLLECT_STATISTICS
 
 enum file_io_type_t {
     file_io_type_buf,
@@ -1900,6 +2320,97 @@ bool file_io_get_line(
         file->impl, ptr, len);
 }
 
+#ifdef CONFIG_COLLECT_STATISTICS
+
+#define FILE_IO_AS_(t)             \
+    ({                             \
+        VERIFY(                    \
+            file->type ==          \
+            file_io_type_ ## t);   \
+        (struct file_ ## t ## _t*) \
+            file->impl;            \
+    })
+
+struct file_buf_t*
+    file_io_as_buf(const struct file_io_t* file)
+{ return FILE_IO_AS_(buf); }
+
+struct file_map_t*
+    file_io_as_map(const struct file_io_t* file)
+{ return FILE_IO_AS_(map); }
+
+#define FILE_IO_STATS_INIT_(n)          \
+    do {                                \
+        stats->type =                   \
+            file_io_stats_type_ ## n;   \
+        STATIC(offsetof(struct          \
+            file_io_stats_t, n) == 0);  \
+        stats->print =                  \
+            (void (*)(const void*,      \
+                const char*,            \
+                FILE*))                 \
+            file_ ## n ## _stats_print; \
+    } while (0)
+#define FILE_IO_STATS_INIT(n, ...)      \
+    do {                                \
+        FILE_IO_STATS_INIT_(n);         \
+        file_ ## n ## _stats_init(      \
+            (void*) stats, ##           \
+            __VA_ARGS__);               \
+    } while (0)
+
+void file_io_stats_init(
+    struct file_io_stats_t* stats)
+{
+    FILE_IO_STATS_INIT_(null);
+}
+
+void file_io_stats_init_from_file(
+    struct file_io_stats_t* stats,
+    const struct file_io_t* file)
+{
+    switch (file->type) {
+
+    case file_io_type_buf:
+        FILE_IO_STATS_INIT(
+            buf, file_io_as_buf(file));
+        break;
+
+    case file_io_type_map:
+        FILE_IO_STATS_INIT(
+            map, file_io_as_map(file));
+        break;
+
+    default:
+        UNEXPECT_VAR("%d", file->type);
+    }
+}
+
+void file_io_stats_print(
+    const struct file_io_stats_t* stats,
+    const char* name, FILE* file)
+{
+    stats->print(stats, name, file);
+}
+
+struct file_io_stats_t file_io_get_stats(
+    const struct file_io_t* file)
+{
+    struct file_io_stats_t s;
+    file_io_stats_init_from_file(&s, file);
+    return s;
+}
+
+struct dict_stats_t
+{
+    struct file_io_stats_t load_io;
+    struct file_io_stats_t count_io;
+    uint64_t load_time;
+    uint64_t count_time;
+};
+
+#endif // CONFIG_COLLECT_STATISTICS
+
 struct dict_t
 {
     size_t io_buf_size;
@@ -1908,6 +2419,9 @@ struct dict_t
     struct mem_mgr_t mem;
     struct lhash_t hash;
     size_t n_words;
+#ifdef CONFIG_COLLECT_STATISTICS
+    struct dict_stats_t stats;
+#endif
 };
 
 void dict_init(
@@ -1917,6 +2431,8 @@ void dict_init(
     bool mapped_dict,
     bool mapped_text)
 {
+    memset(dict, 0, sizeof *dict);
+
     dict->io_buf_size = io_buf_size;
     dict->mapped_dict = mapped_dict;
     dict->mapped_text = mapped_text;
@@ -1924,7 +2440,12 @@ void dict_init(
     mem_mgr_init(&dict->mem, mapped_dict);
     lhash_init(&dict->hash, hash_tbl_size);
 
-    dict->n_words = 0;
+#ifdef CONFIG_COLLECT_STATISTICS
+    file_io_stats_init(
+        &dict->stats.load_io);
+    file_io_stats_init(
+        &dict->stats.count_io);
+#endif
 }
 
 void dict_done(struct dict_t* dict)
@@ -1941,6 +2462,9 @@ void dict_load(
     size_t l = 0, k;
     const char* b;
 
+#ifdef CONFIG_COLLECT_STATISTICS
+    uint64_t c = time_now();
+#endif
     file_io_init(
         &f, &dict->mem,
         dict->io_buf_size,
@@ -1980,7 +2504,17 @@ void dict_load(
         }
     }
 
+#ifdef CONFIG_COLLECT_STATISTICS
+    dict->stats.load_io =
+        file_io_get_stats(&f);
+#endif
     file_io_done(&f);
+
+#ifdef CONFIG_COLLECT_STATISTICS
+    TIME_ADD(
+        dict->stats.load_time,
+        time_elapsed(c));
+#endif
 }
 
 typedef char ascii_table_t[256];
@@ -2026,6 +2560,9 @@ void dict_count(
     size_t w = 0, k;
     const char* p;
 
+#ifdef CONFIG_COLLECT_STATISTICS
+    uint64_t c = time_now();
+#endif
     if (dict->mapped_text)
         mem_mgr_init(&m, true);
 
@@ -2062,10 +2599,19 @@ void dict_count(
         }
     }
 
+#ifdef CONFIG_COLLECT_STATISTICS
+    dict->stats.count_io =
+        file_io_get_stats(&f);
+#endif
     file_io_done(&f);
 
     if (dict->mapped_text)
         mem_mgr_done(&m);
+#ifdef CONFIG_COLLECT_STATISTICS
+    TIME_ADD(
+        dict->stats.count_time,
+        time_elapsed(c));
+#endif
 
     ASSERT_UINT_ADD_NO_OVERFLOW(
         dict->n_words, w);
@@ -2080,8 +2626,48 @@ void dict_print(
         dict->n_words);
 }
 
+#ifdef CONFIG_COLLECT_STATISTICS
+
+void dict_print_stats(
+    const struct dict_t* dict, FILE* file)
+{
+#undef  CASE
+#define CASE(n, t) \
+    STAT_PARAM_DEF(dict_stats_t, n, t)
+    static const struct stat_param_t params[] = {
+        CASE(load_time,  time),
+        CASE(count_time, time),
+    };
+
+    lhash_print_stats(
+        &dict->hash,
+        NULL, file);
+    file_io_stats_print(
+        &dict->stats.load_io,
+        "load", file);
+    file_io_stats_print(
+        &dict->stats.count_io,
+        "count", file);
+
+    stat_params_print(
+        params, ARRAY_SIZE(params),
+        &dict->stats, NULL, "dict",
+        file);
+}
+
+enum options_action_t {
+    options_action_load_dict,
+    options_action_count_words,
+    options_action_collect_stats
+};
+
+#endif // CONFIG_COLLECT_STATISTICS
+
 struct options_t
 {
+#ifdef CONFIG_COLLECT_STATISTICS
+    enum options_action_t action;
+#endif
     char const* dict;
     char const* const* inputs;
     size_t n_inputs;
@@ -2287,6 +2873,10 @@ const struct options_t*
     options(int argc, char** argv)
 {
     static struct options_t opts = {
+#ifdef CONFIG_COLLECT_STATISTICS
+        .action        =
+            options_action_count_words,
+#endif
         .io_buf_size   = KB(4),
         .hash_tbl_size = KB(1)
     };
@@ -2303,6 +2893,12 @@ const struct options_t*
         &opts, NULL, GET_ENV(USE_MMAP_IO));
 
     enum {
+#ifdef CONFIG_COLLECT_STATISTICS
+        // stev: action options:
+        load_dict_act     = 'L',
+        count_words_act   = 'C',
+        collect_stats_act = 'S',
+#endif
         // stev: instance options:
         io_buf_size_opt   = 'b',
         hash_tbl_size_opt = 'h',
@@ -2314,6 +2910,11 @@ const struct options_t*
     };
 
     static const struct option longs[] = {
+#ifdef CONFIG_COLLECT_STATISTICS
+        { "load-dict",     0,       0, load_dict_act },
+        { "count-words",   0,       0, count_words_act },
+        { "collect-stats", 0,       0, collect_stats_act },
+#endif
         { "io-buf-size",   1,       0, io_buf_size_opt },
         { "hash-tbl-size", 1,       0, hash_tbl_size_opt },
         { "use-mmap-io",   1,       0, use_mmap_io_opt },
@@ -2321,7 +2922,12 @@ const struct options_t*
         { "help",          0, &optopt, help_opt },
         { 0,               0,       0, 0 }
     };
-    static const char shorts[] = ":b:h:m:";
+    static const char shorts[] =
+        ":"
+#ifdef CONFIG_COLLECT_STATISTICS
+        "LCS"
+#endif
+        "b:h:m:";
 
     struct bits_opts_t
     {
@@ -2362,6 +2968,17 @@ const struct options_t*
     while ((opt = getopt_long(
         argc, argv, shorts, longs, 0)) != EOF) {
         switch (opt) {
+#ifdef CONFIG_COLLECT_STATISTICS
+        case load_dict_act:
+            opts.action = options_action_load_dict;
+            break;
+        case count_words_act:
+            opts.action = options_action_count_words;
+            break;
+        case collect_stats_act:
+            opts.action = options_action_collect_stats;
+            break;
+#endif
         case io_buf_size_opt:
             options_parse_io_buf_size_optarg(
                 &opts, "io-buf-size",
@@ -2458,6 +3075,12 @@ int main(int argc, char* argv[])
         opt->text_use_mmap_io);
     dict_load(&dict, opt->dict);
 
+#ifdef CONFIG_COLLECT_STATISTICS
+    if (opt->action ==
+        options_action_load_dict)
+        goto print_stats;
+#endif
+
     if (!opt->n_inputs)
         dict_count(&dict, NULL);
     else {
@@ -2473,7 +3096,16 @@ int main(int argc, char* argv[])
         }
     }
 
+#ifndef CONFIG_COLLECT_STATISTICS
     dict_print(&dict, stdout);
+#else
+    if (opt->action ==
+        options_action_count_words)
+        dict_print(&dict, stdout);
+    else
+    print_stats:
+        dict_print_stats(&dict, stdout);
+#endif
     dict_done(&dict);
 
     return 0;
