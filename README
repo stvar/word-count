@@ -37,19 +37,23 @@ consists of one binary program -- 'word-count' -- that is to be used by simple
 command lines as shown by 'word-count's own help info:
 
   $ ./word-count --help
-  usage: word-count [OPTION...] DICT [TEXT...]
+  usage: word-count [OPTION]... DICT [TEXT]...
   where the options are:
-    -b|--io-buf-size=SIZE  the initial size of the memory buffers allocated
-                             for buffered I/O; SIZE is of form [0-9]+[KM]?,
-                             the default being 4K; the attached env var is
-                             $WORD_COUNT_IO_BUF_SIZE
-    -m|--use-mmap-io=SPEC  use memory-mapped I/O instead of buffered I/O
-                             as specified: either one of 'dict', 'text',
-                             'none' or 'all'; the default is 'none'; '-'
-                             is a shortcut for 'none' and '+' for 'all';
-                             attached env var: $WORD_COUNT_USE_MMAP_IO
-       --version           print version numbers and exit
-    -?|--help              display this help info and exit
+    -b|--io-buf-size=SIZE    the initial size of the memory buffers allocated
+                               for buffered I/O; SIZE is of form [0-9]+[KM]?,
+                               the default being 4K; the attached env var is
+                               $WORD_COUNT_IO_BUF_SIZE
+    -h|--hash-tbl-size=SIZE  the initial number of hash table entries used;
+                               the default size is 1024; attached env var:
+                               $WORD_COUNT_HASH_TBL_SIZE
+    -m|--use-mmap-io=SPEC    use memory-mapped I/O instead of buffered I/O
+                               as specified: either one of 'dict', 'text',
+                               'none' or 'all'; the default is 'none'; '-'
+                               is a shortcut for 'none' and '+' for 'all';
+                               attached env var: $WORD_COUNT_USE_MMAP_IO
+       --[print-]config      print all config and debug parameters and exit
+       --version             print version numbers and exit
+    -?|--help                display this help info and exit
 
 DICT is Word-Count's input dictionary: a given named file containing words (i.e.
 sequence of non-whitespace characters), each placed on a separate line of text.
