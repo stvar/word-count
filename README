@@ -200,6 +200,38 @@ Currently, the configuration parameters of Word-Count are as shown:
     I/O buffering algorithm, by having its I/O buffer growing at a constant
     very small rate.
 
+  * 'CONFIG_USE_HASH_ALGO={FNV1,FNV1A,MURMUR2,MURMUR3}'
+    The hash table employed by Word-Count can be made through this configuration
+    parameter to use the named hashing algorithm. The FNV [8] and MurmurHash [9]
+    family of algorithms are well-known high-quality non-cryptographic string
+    hashing algorithms.
+
+  * 'CONFIG_COLLECT_STATISTICS'
+    The purpose of this config parameter is that of bringing into a 'word-count'
+    binary statistics collecting code. This code records and prints out various
+    run-time parameters that are relevant to the internal functioning of a given
+    configuration of Word-Count.
+
+    For printing out statistics data, 'word-count' augments its basic command
+    line options with command line action options:
+
+      $ ./word-count --help
+      usage: word-count [ACTION|OPTION]... DICT [TEXT]...
+      where the actions are:
+        -L|--load-dict           only load dictionary and print out collected
+                                   statistics data
+        -C|--count-words         count input words and print out counter/word
+                                   pairs (default)
+        -S|--collect-stats       count input words, but print out only collected
+                                   statistics data
+      and the options are:
+      ...
+
+    The basic function of 'word-count' is available under the action options
+    `-C|--count-words', while the new function of collecting and printing out
+    statistics data is available under the action options `-L|--load-dict' and
+    `-S|--collect-stats'.
+
 The 'make' parameter 'SANITIZE=$SANITIZE' makes GCC receiving the argument
 `-fsanitize=$SANITIZE', where '$SANITIZE' can be 'address' or 'undefined'.
 
@@ -746,5 +778,11 @@ Internet Resources:
 
 [7] GCC's Docs: 6.52 Built-in Functions to Perform Arithmetic with Overflow Checking
     https://gcc.gnu.org/onlinedocs/gcc-5.1.0/gcc/Integer-Overflow-Builtins.html
+
+[8] FNV Hash, by Landon Curt Noll
+    http://www.isthe.com/chongo/tech/comp/fnv/index.html
+
+[9] MurmurHash Family of Hash Functions, by Austin Appleby
+    https://github.com/aappleby/smhasher
 
 
