@@ -901,11 +901,8 @@ struct mem_map_t*
         __h;                       \
     })
 
-uint32_t lhash_hash_key2(const char* key, size_t len)
+uint32_t lhash_hash_key(const char* key, size_t len)
 { return LHASH_HASH_KEY(key, len --); }
-
-uint32_t lhash_hash_key(const char* key)
-{ return LHASH_HASH_KEY(key); }
 
 struct lhash_node_t
 {
@@ -1134,7 +1131,7 @@ void lhash_rehash(struct lhash_t* hash)
 
 #ifndef CONFIG_MEMOIZE_KEY_HASHES
         unsigned l = LHASH_NODE_LEN(p);
-        q = t + lhash_hash_key2(k, l) % s;
+        q = t + lhash_hash_key(k, l) % s;
 #else
         q = t + p->hash % s;
 #endif
@@ -1179,7 +1176,7 @@ bool lhash_insert(
     ASSERT(key != NULL);
     LHASH_ASSERT_INVARIANTS(hash);
 
-    h = lhash_hash_key2(key, len);
+    h = lhash_hash_key(key, len);
     p = hash->table + h % hash->size;
 
     while (LHASH_NODE_KEY(p) != NULL) {
@@ -1243,7 +1240,7 @@ bool lhash_lookup(
     ASSERT(key != NULL);
     LHASH_ASSERT_INVARIANTS(hash);
 
-    p = hash->table + lhash_hash_key2(key, len) %
+    p = hash->table + lhash_hash_key(key, len) %
         hash->size;
 
     while (LHASH_NODE_KEY(p) != NULL) {
