@@ -285,6 +285,9 @@ by the help info it provides:
                              'word-count' binary (default)
   and the options are:
     -c|--no-color          do not colorize output
+    -d|--dry-run           when the script's action is `-B|--build-run'
+                             or `-A|--all-build-run', do not run any
+                             test, only build the 'word-count' binaries
     -e|--echo              echo the command line invoking the script
     -g|--valgrind          execute each 'word-count' instance under
                              'valgrind'
