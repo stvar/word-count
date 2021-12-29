@@ -2079,12 +2079,6 @@ void file_buf_stats_init(
         memset(stats, 0, sizeof *stats);
 }
 
-struct file_buf_stat_params_t
-{
-    const struct stat_params_t* params;
-    size_t n_params;
-};
-
 const struct stat_params_t*
     file_buf_stat_params(void)
 {
