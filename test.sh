@@ -41,6 +41,9 @@ where the actions are:
                            'word-count' binary (default)
 and the options are:
   -c|--no-color          do not colorize output
+  -d|--dry-run           when the script's action is \`-B|--build-run'
+                           or \`-A|--all-build-run', do not run any
+                           test, only build the 'word-count' binaries
   -e|--echo              echo the command line invoking the script
   -g|--valgrind          execute each 'word-count' instance under
                            'valgrind'
@@ -122,6 +125,7 @@ no_color=''
 valgrind=''
 use_mmap_io=''
 io_buf_size='1'
+dry_run=''
 verbose=''
 args=''
 
@@ -151,6 +155,7 @@ build-run
 commands
 run
 no-color
+dry-run
 echo
 valgrind
 version
@@ -169,7 +174,10 @@ help"
                     <<< "${o:2:1}")"
                 ;;
             -c|--no-color)
-                no_color='e'
+                no_color='c'
+                ;;
+            -d|--dry-run)
+                dry_run='d'
                 ;;
             -e|--echo)
                 echo='e'
@@ -307,7 +315,7 @@ build-run-tests()
 
     if [ "$action" == 'A' ]; then
         c="\
-$program -B${verbose:+ -v}${no_color:+ -c} -e$a"
+$program -B${verbose:+ -v}${no_color:+ -c}${dry_run:+ -d} -e$a"
         local r=0
         for p in '' \
             USE_48BIT_PTR \
@@ -344,7 +352,10 @@ make"
         [ -z "$verbose" ] && c+=" \
 -s"
         c+=" \
-GCC=$gcc -B$a && {"
+GCC=$gcc -B$a"
+        [ -z "$dry_run" ] &&
+        c+=" && {"
+        [ -z "$dry_run" ] &&
         for g in '' g; do
             # stev: this script's options
             # `-g|--valgrind' cannot be
@@ -358,7 +369,7 @@ GCC=$gcc -B$a && {"
 $program -R${verbose:+ -v}${no_color:+ -c} -e${g:+ -g} -m$m;"
             done
         done
-        c+="\
+        [ -z "$dry_run" ] && c+="\
  }"
         eval "$c"
     else
