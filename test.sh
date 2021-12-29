@@ -135,10 +135,10 @@ error()
             ;;
         -i) m="invalid argument '$a' for option '$o'"
             ;;
-        *)	m="$@"
+        *)  m="$@"
             ;;
     esac	
-    printf >&2 -- "${program##*/}: error: $m"
+    printf >&2 "%s\n" "${program##*/}: error: $m"
 }
 
 parse-options()
