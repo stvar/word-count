@@ -273,7 +273,8 @@ by the help info it provides:
                              with the following 'Makefile' parameters:
                                * no 'CONFIG', 'CONFIG+=USE_48BIT_PTR',
                                  or 'CONFIG+=USE_OVERFLOW_BUILTINS',
-                                 or 'CONFIG+=USE_IO_BUF_LINEAR_GROWTH';
+                                 or 'CONFIG+=USE_IO_BUF_LINEAR_GROWTH'
+                                 or 'CONFIG+=MEMOIZE_KEY_HASHES';
                                * no 'SANITIZE', 'SANITIZE=address',
                                  or 'SANITIZE=undefined';
                                * no 'OPT' or 'OPT=3'
