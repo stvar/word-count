@@ -166,7 +166,7 @@ Currently, the configuration parameters of Word-Count are as shown:
     checking code to use the GCC's builtin functions '__builtin_add_overflow_p',
     '__builtin_sub_overflow_p', '__builtin_mul_overflow_p' [7].
 
-    A very nice feature of GCC's is that the C code like the one below:
+    A very nice feature of GCC is that the C code like the one below:
 
       size_t f(size_t x, size_t y)
       {
@@ -201,7 +201,7 @@ Currently, the configuration parameters of Word-Count are as shown:
     one that grows the I/O buffer sizes linearly, with the increments given by
     'word-count's command line options `-b|--io-buf-size'. The linear growing
     scheme is inefficient, yet is of use when it comes to test the program's
-    I/O buffering algorithm, by having its I/O buffer growing at a constant
+    I/O buffering algorithm, by having the I/O buffer growing at a constant
     very small rate.
 
   * 'CONFIG_USE_HASH_ALGO={FNV1,FNV1A,MURMUR2,MURMUR3}'
