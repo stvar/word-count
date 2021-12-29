@@ -135,6 +135,8 @@ error()
             ;;
         -i) m="invalid argument '$a' for option '$o'"
             ;;
+        -d) m="option '$o' does not take arguments"
+            ;;
         *)  m="$@"
             ;;
     esac	
@@ -143,6 +145,17 @@ error()
 
 parse-options()
 {
+    local optl="\
+all-build-run
+build-run
+commands
+run
+no-color
+echo
+valgrind
+version
+help"
+
     local o
     local a
     while [ "$#" -gt 0 ]; do
@@ -219,6 +232,11 @@ parse-options()
                 ;;
             -\?|--help)
                 action='?'
+                ;;
+            --+(${optl//$'\n'/|})=*)
+                o="${o%%=*}"
+                error -d
+                return 1
                 ;;
             -*)	error -o
                 return 1
