@@ -735,6 +735,12 @@ struct stat_param_t
     size_t offset;
 };
 
+struct stat_params_t
+{
+    const struct stat_param_t* params;
+    size_t n_params;
+};
+
 #define STAT_PARAM_TYPE_(s, n, t) \
         STATIC_(TYPEOF_IS(((struct s*) NULL)->n, t), 0)
 #define STAT_PARAM_TYPE_size_(s, n) \
@@ -756,30 +762,66 @@ struct stat_param_t
         .offset = STAT_PARAM_OFFSET(s, n, t) \
     }
 
-#define STAT_PARAM_VAL_(p, t)       \
+#define STAT_PARAM_REF_(p, o, t, q) \
     ({                              \
         STATIC(TYPEOF_IS(p, const   \
             struct stat_param_t*)); \
-        *(t const*) (               \
-            ((uchar_t*) obj) +      \
+        (t q*) (                    \
+            ((uchar_t*) (o)) +      \
             p->offset               \
         );                          \
     })
-#define STAT_PARAM_VAL_SIZE(p) \
-        STAT_PARAM_VAL_(p, size_t)
-#define STAT_PARAM_VAL_TIME(p) \
-        STAT_PARAM_VAL_(p, uint64_t)
+#define STAT_PARAM_REF_SIZE(p, o) \
+        STAT_PARAM_REF_(p, o, size_t, )
+#define STAT_PARAM_REF_TIME(p, o) \
+        STAT_PARAM_REF_(p, o, uint64_t, )
 
-void stat_params_print(
-    const struct stat_param_t* params,
-    size_t n_params, const void* obj,
-    const char* ctxt, const char* name,
-    FILE* file)
+#define STAT_PARAM_VAL_(p, o, t)         \
+    (                                    \
+        *STAT_PARAM_REF_(p, o, t, const) \
+    )
+#define STAT_PARAM_VAL_SIZE(p, o) \
+        STAT_PARAM_VAL_(p, o, size_t)
+#define STAT_PARAM_VAL_TIME(p, o) \
+        STAT_PARAM_VAL_(p, o, uint64_t)
+
+void stat_params_add(
+    const struct stat_params_t* stat,
+    void* dest, const void* src)
 {
     const struct stat_param_t *p, *e;
 
-    for (p = params,
-         e = p + n_params;
+    for (p = stat->params,
+         e = p + stat->n_params;
+         p < e;
+         p ++) {
+        switch (p->type) {
+
+        case stat_param_type_size:
+            *STAT_PARAM_REF_SIZE(p, dest) +=
+             STAT_PARAM_VAL_SIZE(p, src);
+            break;
+
+        case stat_param_type_time: {
+            *STAT_PARAM_REF_TIME(p, dest) +=
+             STAT_PARAM_VAL_TIME(p, src);
+            break;
+        }
+
+        default:
+            UNEXPECT_VAR("%d", p->type);
+        }
+    }
+}
+void stat_params_print(
+    const struct stat_params_t* stat,
+    const void* obj, const char* ctxt,
+    const char* name, FILE* file)
+{
+    const struct stat_param_t *p, *e;
+
+    for (p = stat->params,
+         e = p + stat->n_params;
          p < e;
          p ++) {
         size_t w = 23;
@@ -815,11 +857,11 @@ void stat_params_print(
 
         case stat_param_type_size:
             fprintf(file, "%zu\n",
-                STAT_PARAM_VAL_SIZE(p));
+                STAT_PARAM_VAL_SIZE(p, obj));
             break;
 
         case stat_param_type_time: {
-            uint64_t v = STAT_PARAM_VAL_TIME(p);
+            uint64_t v = STAT_PARAM_VAL_TIME(p, obj);
             fprintf(file, "%" PRIu64 ".%09" PRIu64 "s\n",
                 v / TIME_NSECS, v % TIME_NSECS);
             break;
@@ -1641,11 +1683,14 @@ void lhash_print_stats(
         CASE(lookup_eq,    size),
         CASE(lookup_ne,    size),
     };
+    static const struct stat_params_t stat = {
+        .n_params = ARRAY_SIZE(params),
+        .params = params
+    };
 
     stat_params_print(
-        params, ARRAY_SIZE(params),
-        &hash->stats, name, "hash",
-        file);
+        &stat, &hash->stats,
+        name, "hash", file);
 }
 
 struct file_buf_stats_t
@@ -2034,9 +2079,14 @@ void file_buf_stats_init(
         memset(stats, 0, sizeof *stats);
 }
 
-void file_buf_stats_print(
-    const struct file_buf_stats_t* stats,
-    const char* name, FILE* file)
+struct file_buf_stat_params_t
+{
+    const struct stat_params_t* params;
+    size_t n_params;
+};
+
+const struct stat_params_t*
+    file_buf_stat_params(void)
 {
 #undef  CASE
 #define CASE(n, t) \
@@ -2050,11 +2100,29 @@ void file_buf_stats_print(
         CASE(memcpy_count,  size),
         CASE(getline_time,  time),
     };
+    static const struct stat_params_t stat = {
+        .n_params = ARRAY_SIZE(params),
+        .params = params
+    };
+    return &stat;
+}
 
+void file_buf_stats_add(
+    struct file_buf_stats_t* stats,
+    const struct file_buf_stats_t* stats2)
+{
+    stat_params_add(
+        file_buf_stat_params(),
+        stats, stats2);
+}
+
+void file_buf_stats_print(
+    const struct file_buf_stats_t* stats,
+    const char* name, FILE* file)
+{
     stat_params_print(
-        params, ARRAY_SIZE(params),
-        stats, name, "buf",
-        file);
+        file_buf_stat_params(),
+        stats, name, "buf", file);
 }
 
 struct file_map_stats_t
@@ -2203,9 +2271,8 @@ void file_map_stats_init(
     memcpy(stats, &map->stats, sizeof *stats);
 }
 
-void file_map_stats_print(
-    const struct file_map_stats_t* stats,
-    const char* name, FILE* file)
+const struct stat_params_t*
+    file_map_stat_params(void)
 {
 #undef  CASE
 #define CASE(n, t) \
@@ -2213,11 +2280,29 @@ void file_map_stats_print(
     static const struct stat_param_t params[] = {
         CASE(getline_time, time),
     };
+    static const struct stat_params_t stat = {
+        .n_params = ARRAY_SIZE(params),
+        .params = params
+    };
+    return &stat;
+}
 
+void file_map_stats_add(
+    struct file_map_stats_t* stats,
+    const struct file_map_stats_t* stats2)
+{
+    stat_params_add(
+        file_map_stat_params(),
+        stats, stats2);
+}
+
+void file_map_stats_print(
+    const struct file_map_stats_t* stats,
+    const char* name, FILE* file)
+{
     stat_params_print(
-        params, ARRAY_SIZE(params),
-        stats, name, "map",
-        file);
+        file_map_stat_params(),
+        stats, name, "map", file);
 }
 
 enum file_io_stats_type_t {
@@ -2235,11 +2320,18 @@ struct file_io_stats_t
     };
     enum file_io_stats_type_t type;
 
+    void (*add)(
+        void*, const void*);
     void (*print)(
         const void*,
         const char*,
         FILE*);
 };
+
+void file_null_stats_add(
+    struct file_io_stats_t* stats UNUSED,
+    const struct file_io_stats_t* stats2 UNUSED)
+{ /* stev: nop */ }
 
 void file_null_stats_print(
     const struct file_io_stats_t* stats UNUSED,
@@ -2346,6 +2438,10 @@ struct file_map_t*
             file_io_stats_type_ ## n;   \
         STATIC(offsetof(struct          \
             file_io_stats_t, n) == 0);  \
+        stats->add =                    \
+            (void (*)(void*,            \
+                const void*))           \
+            file_ ## n ## _stats_add;   \
         stats->print =                  \
             (void (*)(const void*,      \
                 const char*,            \
@@ -2384,6 +2480,18 @@ void file_io_stats_init_from_file(
 
     default:
         UNEXPECT_VAR("%d", file->type);
+    }
+}
+
+void file_io_stats_add(
+    struct file_io_stats_t* stats,
+    struct file_io_stats_t stats2)
+{
+    if (stats->type == file_io_stats_type_null)
+        memcpy(stats, &stats2, sizeof *stats);
+    else {
+        VERIFY(stats->type == stats2.type);
+        stats->add(stats, &stats2);
     }
 }
 
@@ -2601,8 +2709,9 @@ void dict_count(
     }
 
 #ifdef CONFIG_COLLECT_STATISTICS
-    dict->stats.count_io =
-        file_io_get_stats(&f);
+    file_io_stats_add(
+        &dict->stats.count_io,
+        file_io_get_stats(&f));
 #endif
     file_io_done(&f);
 
@@ -2639,6 +2748,10 @@ void dict_print_stats(
         CASE(load_time,  time),
         CASE(count_time, time),
     };
+    static const struct stat_params_t stat = {
+        .n_params = ARRAY_SIZE(params),
+        .params = params
+    };
 
     lhash_print_stats(
         &dict->hash,
@@ -2651,9 +2764,8 @@ void dict_print_stats(
         "count", file);
 
     stat_params_print(
-        params, ARRAY_SIZE(params),
-        &dict->stats, NULL, "dict",
-        file);
+        &stat, &dict->stats,
+        NULL, "dict", file);
 }
 
 enum options_action_t {
