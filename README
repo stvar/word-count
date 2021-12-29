@@ -380,7 +380,7 @@ parameters by a corresponding outer command `./test.sh -B':
   $ ./test.sh -R -g -m text
 
 Yet more of an use case of 'test.sh' is the following: run 'test.sh' on a given
-GCC or, in series, on several different GCC's:
+GCC or, in series, on several different GCCs:
 
   $ ./test.sh -A GCC=gcc-7
 
