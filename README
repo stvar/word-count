@@ -133,7 +133,7 @@ where each 'ARG' is of one the following form:
     CONFIG+=$NAME             -DCONFIG_$NAME
     CONFIG+=$NAME=$VALUE      -DCONFIG_$NAME=$VALUE
     SANITIZE=$SANITIZE        -fsanitize=$SANITIZE
-    OPT=$OPT                  -O$OPT
+    OPT=$OPT                  -O$OPT and a few more
   ------------------------  -------------------------
 
 Above, in the case of 'CONFIG' arguments, '$NAME' is the name of the respective
@@ -245,9 +245,21 @@ Currently, the configuration parameters of Word-Count are as shown:
 The 'make' parameter 'SANITIZE=$SANITIZE' makes GCC receiving the argument
 `-fsanitize=$SANITIZE', where '$SANITIZE' can be 'address' or 'undefined'.
 
-The 'make' parameter 'OPT=$OPT' makes GCC to get the argument `-O$OPT', where
-'$OPT' can be [0-3]. When the command line invoking 'make' does not contain an
+The 'make' parameter 'OPT=$OPT' makes GCC to get the argument `-O$OPT', when
+'$OPT' is '[0-3]'. When the command line invoking 'make' does not contain an
 argument of form `OPT=$OPT', GCC receives the arguments `-DDEGUG -g' instead.
+
+When '$OPT' is 'PERF', GCC gets the arguments `-O3 -fno-omit-frame-pointer'.
+The second argument makes the 'perf' program [10] applicable to 'word-count',
+such that 'perf' generate profiling data for given instances of 'word-count'
+executed under it. Upon running 'word-count' under 'perf', the profiling data
+obtained can be read and analyzed by the means 'perf' itself offers.
+
+When '$OPT' is 'PROF', by receiving the arguments `-O3 -pg', GCC is asked to
+build a binary 'word-count' that has profiling instrumentation enabled. Such
+an instrumented 'word-count' will generate upon each execution profiling data
+that can be read and analyzed with the help of 'gprof' program (which is part
+of GNU Binutils package [11]).
 
 Upon running 'make', expect to get neither warnings nor errors out of it. If
 everything went OK, 'make' is supposed to have produced the binary 'word-count'.
@@ -798,5 +810,12 @@ Internet Resources:
 
 [9] MurmurHash Family of Hash Functions, by Austin Appleby
     https://github.com/aappleby/smhasher
+
+[10] Perf: Linux Profiling With Performance Counters
+     https://perf.wiki.kernel.org/
+
+[11] GNU Binutils: GProf
+     https://www.gnu.org/software/binutils/
+     https://sourceware.org/binutils/docs/gprof.html
 
 
