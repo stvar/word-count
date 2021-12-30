@@ -90,10 +90,16 @@ ifdef OPT
 ifneq ($(words ${OPT}),1)
 $(error invalid OPT='${OPT}')
 endif
-ifneq ($(filter-out 0 1 2 3,${OPT}),)
+ifneq ($(filter-out 0 1 2 3 PERF PROF,${OPT}),)
 $(error invalid OPT='${OPT}')
 endif
+ifeq (${OPT},PERF)
+CFLAGS += -O3 -fno-omit-frame-pointer
+else ifeq (${OPT},PROF)
+CFLAGS += -O3 -pg
+else
 CFLAGS += -O$(strip ${OPT})
+endif
 else
 CFLAGS += -DDEBUG -g
 endif
