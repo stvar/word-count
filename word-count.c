@@ -813,6 +813,7 @@ void stat_params_add(
         }
     }
 }
+
 void stat_params_print(
     const struct stat_params_t* stat,
     const void* obj, const char* ctxt,
