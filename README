@@ -419,7 +419,7 @@ word its correspondent input occurrence counter -- for several reasons:
 
   (b) This kind of hash table leads to implementations that are fast, efficient
       and cache-friendly (Google itself was advertising the usage of this data
-      structure on CppCon 2017 [5]);
+      structure on CppCon 2017 and CppCon 2019 [5]);
 
   (c) I myself have employed it in quite a lot of my projects (some of which are
       public: Path-Set [2], Json-Type [3]).
@@ -782,6 +782,10 @@ Internet Resources:
     Matt Kulukundis: Designing a Fast, Efficient,
     Cache-friendly Hash Table, Step by Step
     https://www.youtube.com/watch?v=ncHmEUmJZf4
+
+    YouTube: CppCon 2019
+    Matt Kulukundis: Abseil's Open Source Hashtables: 2 Years In
+    https://www.youtube.com/watch?v=JZE3_0qvrMg
 
 [6] Intel® 64 and IA-32 Architectures Software Developer’s Manual
     https://www.intel.com/content/dam/www/public/us/en/documents/manuals/
