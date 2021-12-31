@@ -455,7 +455,7 @@ of Word-Count is as follows:
     * bool (*get_line)(void* this, const char** ptr, size_t* len):
       virtual method that provides line-oriented I/O functionality.
 
-  There are two concrete classes that implements the interface above: the class
+  There are two concrete classes that implement the interface above: the class
   'file_map_t' and the class 'file_buf_t'.
 
   struct file_map_t
