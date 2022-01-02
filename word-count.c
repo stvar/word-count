@@ -2712,15 +2712,16 @@ void dict_count(
 
     if (dict->mapped_text)
         mem_mgr_done(&m);
+
+    ASSERT_UINT_ADD_NO_OVERFLOW(
+        dict->n_words, w);
+    dict->n_words += w;
+
 #ifdef CONFIG_COLLECT_STATISTICS
     TIME_ADD(
         dict->stats.count_time,
         time_elapsed(c));
 #endif
-
-    ASSERT_UINT_ADD_NO_OVERFLOW(
-        dict->n_words, w);
-    dict->n_words += w;
 }
 
 void dict_print(
