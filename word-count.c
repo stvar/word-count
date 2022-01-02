@@ -95,6 +95,13 @@ const char help[] =
 "                             is a shortcut for 'none' and '+' for 'all';\n"
 "                             attached env var: $WORD_COUNT_USE_MMAP_IO\n"
 "     --[print-]config      print all config and debug parameters and exit\n"
+#ifdef CONFIG_COLLECT_STATISTICS
+"     --[print-]stat-names  print the names of the statistics parameters\n"
+"                             that otherwise would have been printed out\n"
+"                             by the program when invoked with a command\n"
+"                             that differs from the current one by only\n"
+"                             excluding these options and then exit\n"
+#endif
 "     --version             print version numbers and exit\n"
 "  -?|--help                display this help info and exit\n";
 
@@ -812,6 +819,25 @@ void stat_params_add(
         default:
             UNEXPECT_VAR("%d", p->type);
         }
+    }
+}
+
+void stat_params_print_names(
+    const struct stat_params_t* stat,
+    const char* ctxt,
+    FILE* file)
+{
+    const struct stat_param_t *p, *e;
+
+    for (p = stat->params,
+         e = p + stat->n_params;
+         p < e;
+         p ++) {
+        if (ctxt)
+            fprintf(file, "%s.", ctxt);
+        fprintf(file, "%s.%s\n",
+            stat->name,
+            p->name);
     }
 }
 
@@ -1706,6 +1732,13 @@ const struct stat_params_t*
     return &stat;
 }
 
+void lhash_print_stat_names(
+    const char* name, FILE* file)
+{
+    stat_params_print_names(
+        lhash_stat_params(),
+        name, file);
+}
 
 void lhash_print_stats(
     const struct lhash_t* hash,
@@ -2135,6 +2168,15 @@ void file_buf_stats_add(
         stats, stats2);
 }
 
+void file_buf_stats_print_names(
+    const char* name,
+    FILE* file)
+{
+    stat_params_print_names(
+        file_buf_stat_params(),
+        name, file);
+}
+
 void file_buf_stats_print(
     const struct file_buf_stats_t* stats,
     const char* name, FILE* file)
@@ -2314,6 +2356,15 @@ void file_map_stats_add(
     stat_params_add(
         file_map_stat_params(),
         stats, stats2);
+}
+
+void file_map_stats_print_names(
+    const char* name,
+    FILE* file)
+{
+    stat_params_print_names(
+        file_map_stat_params(),
+        name, file);
 }
 
 void file_map_stats_print(
@@ -2513,6 +2564,21 @@ void file_io_stats_add(
         VERIFY(stats->type == stats2.type);
         stats->add(stats, &stats2);
     }
+}
+
+void file_io_stats_print_names(
+    bool mapped, bool empty,
+    const char* name,
+    FILE* file)
+{
+    if (empty)
+        return;
+    if (mapped)
+        file_map_stats_print_names(
+            name, file);
+    else
+        file_buf_stats_print_names(
+            name, file);
 }
 
 void file_io_stats_print(
@@ -2775,6 +2841,25 @@ const struct stat_params_t*
         .name = "dict"
     };
     return &stat;
+}
+
+void dict_print_stat_names(
+    bool mapped_dict,
+    bool mapped_text,
+    bool only_load,
+    FILE* file)
+{
+    lhash_print_stat_names(
+        NULL, file);
+    file_io_stats_print_names(
+        mapped_dict, false,
+        "load", file);
+    file_io_stats_print_names(
+        mapped_text, only_load,
+        "count", file);
+    stat_params_print_names(
+        dict_stat_params(),
+        NULL, file);
 }
 
 void dict_print_stats(
@@ -3129,23 +3214,30 @@ const struct options_t*
         // stev: info options:
         help_opt          = '?',
         version_opt       = 128,
-        print_config_opt
+        print_config_opt,
+#ifdef CONFIG_COLLECT_STATISTICS
+        print_stat_names_opt
+#endif
     };
 
     static const struct option longs[] = {
 #ifdef CONFIG_COLLECT_STATISTICS
-        { "load-dict",     0,       0, load_dict_act },
-        { "count-words",   0,       0, count_words_act },
-        { "collect-stats", 0,       0, collect_stats_act },
+        { "load-dict",        0,       0, load_dict_act },
+        { "count-words",      0,       0, count_words_act },
+        { "collect-stats",    0,       0, collect_stats_act },
 #endif
-        { "io-buf-size",   1,       0, io_buf_size_opt },
-        { "hash-tbl-size", 1,       0, hash_tbl_size_opt },
-        { "use-mmap-io",   1,       0, use_mmap_io_opt },
-        { "print-config",  0,       0, print_config_opt },
-        { "config",        0,       0, print_config_opt },
-        { "version",       0,       0, version_opt },
-        { "help",          0, &optopt, help_opt },
-        { 0,               0,       0, 0 }
+        { "io-buf-size",      1,       0, io_buf_size_opt },
+        { "hash-tbl-size",    1,       0, hash_tbl_size_opt },
+        { "use-mmap-io",      1,       0, use_mmap_io_opt },
+        { "print-config",     0,       0, print_config_opt },
+        { "config",           0,       0, print_config_opt },
+#ifdef CONFIG_COLLECT_STATISTICS
+        { "print-stat-names", 0,       0, print_stat_names_opt },
+        { "stat-names",       0,       0, print_stat_names_opt },
+#endif
+        { "version",          0,       0, version_opt },
+        { "help",             0, &optopt, help_opt },
+        { 0,                  0,       0, 0 }
     };
     static const char shorts[] =
         ":"
@@ -3157,11 +3249,17 @@ const struct options_t*
     struct bits_opts_t
     {
         bits_t config: 1;
+#ifdef CONFIG_COLLECT_STATISTICS
+        bits_t stat_names: 1;
+#endif
         bits_t usage: 1;
         bits_t version: 1;
     };
     struct bits_opts_t bits = {
         .config = false,
+#ifdef CONFIG_COLLECT_STATISTICS
+        .stat_names = false,
+#endif
         .usage = false,
         .version = false
     };
@@ -3224,6 +3322,11 @@ const struct options_t*
         case print_config_opt:
             bits.config = true;
             break;
+#ifdef CONFIG_COLLECT_STATISTICS
+        case print_stat_names_opt:
+            bits.stat_names = true;
+            break;
+#endif
         case version_opt:
             bits.version = true;
             break;
@@ -3281,6 +3384,20 @@ const struct options_t*
         bits.config ||
         bits.usage)
         exit(0);
+
+#ifdef CONFIG_COLLECT_STATISTICS
+    if (bits.stat_names) {
+        if (opts.action !=
+            options_action_count_words)
+            dict_print_stat_names(
+                opts.dict_use_mmap_io,
+                opts.text_use_mmap_io,
+                opts.action ==
+                options_action_load_dict,
+                stdout);
+        exit(0);
+    }
+#endif
 
     if (argc <= 0)
         error("dictionary file name not given");
