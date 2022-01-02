@@ -230,6 +230,12 @@ Currently, the configuration parameters of Word-Count are as shown:
                                    statistics data
       and the options are:
       ...
+           --[print-]stat-names  print the names of the statistics parameters
+                                   that otherwise would have been printed out
+                                   by the program when invoked with a command
+                                   that differs from the current one by only
+                                   excluding these options and then exit
+      ...
 
     The basic function of 'word-count' is available under the action options
     `-C|--count-words', while the new function of collecting and printing out
