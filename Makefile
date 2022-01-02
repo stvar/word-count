@@ -112,7 +112,6 @@ ifneq ($(filter-out undefined address,${SANITIZE}),)
 $(error invalid SANITIZE='${SANITIZE}')
 endif
 CFLAGS += -fsanitize=$(strip ${SANITIZE})
-LDFLAGS += -fsanitize=$(strip ${SANITIZE})
 endif
 
 # building rules
