@@ -1,4 +1,4 @@
-// Copyright (C) 2021  Stefan Vargyas
+// Copyright (C) 2021, 2022  Stefan Vargyas
 // 
 // This file is part of Word-Count.
 // 
