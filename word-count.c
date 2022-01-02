@@ -737,6 +737,7 @@ struct stat_param_t
 
 struct stat_params_t
 {
+    const char* name;
     const struct stat_param_t* params;
     size_t n_params;
 };
@@ -817,7 +818,7 @@ void stat_params_add(
 void stat_params_print(
     const struct stat_params_t* stat,
     const void* obj, const char* ctxt,
-    const char* name, FILE* file)
+    FILE* file)
 {
     const struct stat_param_t *p, *e;
 
@@ -830,13 +831,13 @@ void stat_params_print(
         size_t l0 = ctxt != NULL
             ? strlen(ctxt) : 0;
         size_t l1 =
-            strlen(name);
+            strlen(stat->name);
         size_t l2 =
             strlen(p->name);
 
         // stev: +1 due to '.' after ctxt
         size_t l = l0 + 1;
-        // stev: +1 due to '.' after name
+        // stev: +1 due to '.' after stat->name
         UINT_ADD_EQ(l, l1 + 1);
         // stev: +1 due to '\0' after p->name
         UINT_ADD_EQ(l, l2 + 1);
@@ -844,9 +845,9 @@ void stat_params_print(
         char* b = alloca(l);
         int s = ctxt != NULL
             ? snprintf(b, l, "%s.%s.%s",
-                ctxt, name, p->name)
+                ctxt, stat->name, p->name)
             : snprintf(b, l, "%s.%s",
-                name, p->name);
+                stat->name, p->name);
         size_t n = INT_AS_SIZE(s);
         ASSERT(n < l);
 
@@ -1682,9 +1683,8 @@ void lhash_print(
 
 #ifdef CONFIG_COLLECT_STATISTICS
 
-void lhash_print_stats(
-    const struct lhash_t* hash,
-    const char* name, FILE* file)
+const struct stat_params_t*
+    lhash_stat_params(void)
 {
 #undef  CASE
 #define CASE(n, t) \
@@ -1700,12 +1700,21 @@ void lhash_print_stats(
     };
     static const struct stat_params_t stat = {
         .n_params = ARRAY_SIZE(params),
-        .params = params
+        .params = params,
+        .name = "hash"
     };
+    return &stat;
+}
 
+
+void lhash_print_stats(
+    const struct lhash_t* hash,
+    const char* name, FILE* file)
+{
     stat_params_print(
-        &stat, &hash->stats,
-        name, "hash", file);
+        lhash_stat_params(),
+        &hash->stats,
+        name, file);
 }
 
 struct file_buf_stats_t
@@ -2111,7 +2120,8 @@ const struct stat_params_t*
     };
     static const struct stat_params_t stat = {
         .n_params = ARRAY_SIZE(params),
-        .params = params
+        .params = params,
+        .name = "buf"
     };
     return &stat;
 }
@@ -2131,7 +2141,7 @@ void file_buf_stats_print(
 {
     stat_params_print(
         file_buf_stat_params(),
-        stats, name, "buf", file);
+        stats, name, file);
 }
 
 struct file_map_stats_t
@@ -2291,7 +2301,8 @@ const struct stat_params_t*
     };
     static const struct stat_params_t stat = {
         .n_params = ARRAY_SIZE(params),
-        .params = params
+        .params = params,
+        .name = "map"
     };
     return &stat;
 }
@@ -2311,7 +2322,7 @@ void file_map_stats_print(
 {
     stat_params_print(
         file_map_stat_params(),
-        stats, name, "map", file);
+        stats, name, file);
 }
 
 enum file_io_stats_type_t {
@@ -2748,8 +2759,8 @@ void dict_print(
 
 #ifdef CONFIG_COLLECT_STATISTICS
 
-void dict_print_stats(
-    const struct dict_t* dict, FILE* file)
+const struct stat_params_t*
+    dict_stat_params(void)
 {
 #undef  CASE
 #define CASE(n, t) \
@@ -2760,9 +2771,16 @@ void dict_print_stats(
     };
     static const struct stat_params_t stat = {
         .n_params = ARRAY_SIZE(params),
-        .params = params
+        .params = params,
+        .name = "dict"
     };
+    return &stat;
+}
 
+void dict_print_stats(
+    const struct dict_t* dict,
+    FILE* file)
+{
     lhash_print_stats(
         &dict->hash,
         NULL, file);
@@ -2772,10 +2790,10 @@ void dict_print_stats(
     file_io_stats_print(
         &dict->stats.count_io,
         "count", file);
-
     stat_params_print(
-        &stat, &dict->stats,
-        NULL, "dict", file);
+        dict_stat_params(),
+        &dict->stats,
+        NULL, file);
 }
 
 enum options_action_t {
