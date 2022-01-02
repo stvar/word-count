@@ -1523,15 +1523,28 @@ void lhash_rehash(struct lhash_t* hash)
 #endif
 }
 
-#define LHASH_NODE_KEY_EQ(p, k, l) \
-    ({                             \
-        const char* __k =          \
-            LHASH_NODE_KEY(p);     \
-        unsigned __l =             \
-            LHASH_NODE_LEN(p);     \
-        __l == l &&                \
-        !memcmp(__k, k, l);        \
+#ifdef CONFIG_MEMOIZE_KEY_HASHES
+#define LHASH_NODE_KEY_EQ(p, k, l, h) \
+    ({                                \
+        const char* __k =             \
+            LHASH_NODE_KEY(p);        \
+        unsigned __l =                \
+            LHASH_NODE_LEN(p);        \
+        p->hash == h &&               \
+        __l == l &&                   \
+        !memcmp(__k, k, l);           \
     })
+#else // CONFIG_MEMOIZE_KEY_HASHES
+#define LHASH_NODE_KEY_EQ(p, k, l, h) \
+    ({                                \
+        const char* __k =             \
+            LHASH_NODE_KEY(p);        \
+        unsigned __l =                \
+            LHASH_NODE_LEN(p);        \
+        __l == l &&                   \
+        !memcmp(__k, k, l);           \
+    })
+#endif // CONFIG_MEMOIZE_KEY_HASHES
 
 bool lhash_insert(
     struct lhash_t* hash,
@@ -1548,7 +1561,7 @@ bool lhash_insert(
     p = hash->table + h % hash->size;
 
     while (LHASH_NODE_KEY(p) != NULL) {
-        if (LHASH_NODE_KEY_EQ(p, key, len)) {
+        if (LHASH_NODE_KEY_EQ(p, key, len, h)) {
             *result = p;
             return false;
         }
@@ -1607,6 +1620,7 @@ bool lhash_lookup(
     struct lhash_node_t** result)
 {
     struct lhash_node_t* p;
+    uint32_t h;
 
 #ifdef CONFIG_COLLECT_STATISTICS
     struct lhash_t* this = CONST_CAST(
@@ -1617,11 +1631,11 @@ bool lhash_lookup(
     ASSERT(key != NULL);
     LHASH_ASSERT_INVARIANTS(hash);
 
-    p = hash->table + lhash_hash_key(key, len) %
-        hash->size;
+    h = lhash_hash_key(key, len);
+    p = hash->table + h % hash->size;
 
     while (LHASH_NODE_KEY(p) != NULL) {
-        if (LHASH_NODE_KEY_EQ(p, key, len)) {
+        if (LHASH_NODE_KEY_EQ(p, key, len, h)) {
 #ifdef CONFIG_COLLECT_STATISTICS
             TIME_ADD(
                 this->stats.lookup_time,
