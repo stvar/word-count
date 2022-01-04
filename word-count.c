@@ -251,14 +251,6 @@ const char help[] =
 #define INT_AS_SIZE(x) \
         INT_AS_UINT(x, size_t)
 
-#define SIZE_AS_INT(x)               \
-    ({                               \
-        STATIC(TYPEOF_IS_SIZET(x));  \
-        STATIC(INT_MAX <= SIZE_MAX); \
-        ASSERT((x) <= INT_MAX);      \
-        (int) (x);                   \
-    })
-
 #ifdef CONFIG_USE_OVERFLOW_BUILTINS
 #define UINT_DEC_NO_OVERFLOW__(t, x) \
     (!__builtin_sub_overflow_p((x), 1, (t) 0))
@@ -876,7 +868,7 @@ void stat_params_print(
 
         UINT_SUB_EQ(w, n);
         fprintf(file, "%s:%-*s ",
-            b, SIZE_AS_INT(w), "");
+            b, UINT_AS_INT(w), "");
 
         switch (p->type) {
 
@@ -2698,7 +2690,7 @@ void dict_load(
         struct lhash_node_t* e = NULL;
         if (!lhash_insert(&dict->hash, b, k, &e))
             warning("duplicated word in line #%zu: '%.*s'",
-                l, SIZE_AS_INT(k), b);
+                l, UINT_AS_INT(k), b);
         else {
             ASSERT(e != NULL);
             LHASH_NODE_INIT(e, b, k);
@@ -2971,7 +2963,7 @@ void print_config(FILE* file)
         l = strlen(p->name);
         w = UINT_SUB(m, l);
         fprintf(file, "%s:%-*s %s\n",
-            p->name, SIZE_AS_INT(w), "",
+            p->name, UINT_AS_INT(w), "",
             p->val);
     }
 }
