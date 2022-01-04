@@ -2938,7 +2938,7 @@ void print_config(FILE* file)
 #else
         PRINT_CONFIG_DEF(COLLECT_STATISTICS),
 #endif
-#ifndef DEBUG
+#ifndef DEBUG_FILE_BUF_GET_LINE
         PRINT_DEBUG_UND(FILE_BUF_GET_LINE),
 #else
         PRINT_DEBUG_DEF(FILE_BUF_GET_LINE),
