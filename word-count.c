@@ -680,8 +680,10 @@ void io_error_sys(
         uint64_t __s, __n;            \
         STATIC(TYPEOF_IS(s, struct    \
             timespec));               \
-        __s = INT_AS_SIZE(s.tv_sec);  \
-        __n = INT_AS_SIZE(s.tv_nsec); \
+        __s = INT_AS_UINT(            \
+                s.tv_sec, uint64_t);  \
+        __n = INT_AS_UINT(            \
+                s.tv_nsec, uint64_t); \
         ASSERT_UINT_MUL_NO_OVERFLOW(  \
             __s, TIME_NSECS);         \
         __s *= TIME_NSECS;            \
