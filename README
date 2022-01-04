@@ -492,7 +492,7 @@ of Word-Count is as follows:
     * void (*done)(void* this): virtual destructor.
 
   There are two concrete classes that implements the interface above: the class
-  'mem_map_t' and the 'mem_buf_t'.
+  'mem_map_t' and the class 'mem_buf_t'.
 
   struct mem_map_t
   ----------------
@@ -511,8 +511,8 @@ of Word-Count is as follows:
   struct mem_buf_t
   ----------------
   A class incarnating the 'mem_mgr_t' interface that *manages* a set of regions
-  of memory that are obtained from the free store through the library function
-  'malloc'. The lifetime of each managed memory region extends precisely until
+  of memory that are obtained from the free store via the functions 'malloc' or
+  'realloc'. The lifetime of each managed memory region extends precisely until
   that of 'mem_buf_t's instance itself. At the end of lifetime of an instance
   of 'mem_buf_t' all memory regions that the instance manages are released by
   calling the C library function 'free'.
