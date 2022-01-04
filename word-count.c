@@ -2299,11 +2299,20 @@ bool file_map_get_line(
 
     char* b = file->ptr + ln;
     char* p = memchr(b, '\n', n);
+    // => p == NULL || b <= p < b + n
 
     size_t d = p != NULL
         ? PTR_DIFF(p + 1, b)
         : n;
+    // stev: 0 < d <= n:
+    // (a) p != NULL => b <= p < b + n
+    //              <=> 0 <= p - b < n
+    //              <=> 1 <= d = p + 1 - b < n + 1
+    //              <=> 0 < d <= n
+    // (b) p == NULL => d = n > 0
+    // => in all cases: 0 < d <= n
     ASSERT(d <= n);
+    ASSERT(d > 0);
 
     *ptr = b;
     *len = d - (p != NULL);
