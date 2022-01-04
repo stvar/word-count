@@ -231,16 +231,6 @@ const char help[] =
 #define UINT_AS_OFFT(x) \
         UINT_AS_INT_(x, off_t)
 
-#define UINT_TO_SIZE(x)                          \
-    (                                            \
-        STATIC(                                  \
-            TYPE_IS_UNSIGNED_INT(TYPEOF(x)),     \
-        STATIC(                                  \
-            TYPE_UNSIGNED_INT_MAX_(TYPEOF(x)) <= \
-            SIZE_MAX),                           \
-        (size_t) (x)                             \
-    )
-
 #define INT_AS_SIZE_(m, x)                     \
     ({                                         \
         STATIC(                                \
