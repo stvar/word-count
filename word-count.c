@@ -99,8 +99,8 @@ const char help[] =
 "     --[print-]stat-names  print the names of the statistics parameters\n"
 "                             that otherwise would have been printed out\n"
 "                             by the program when invoked with a command\n"
-"                             that differs from the current one by only\n"
-"                             excluding these options and then exit\n"
+"                             line that differs from the current one by\n"
+"                             only excluding these options and then exit\n"
 #endif
 "     --version             print version numbers and exit\n"
 "  -?|--help                display this help info and exit\n";
