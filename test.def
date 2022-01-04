@@ -26,12 +26,14 @@ lorem-ipsum()
         shift
     }
 
+    local n
     case "$1" in
         --@(dict|input|output))
             n="${1:2}"
             ;;
         *) error "lorem-ipsum:" \
             "internal: invalid arg '$1'"
+            return 1
             ;;
     esac
 
