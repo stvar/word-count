@@ -546,20 +546,25 @@ Firstly, two helper shell functions:
     sed -nr '/\.cfi_startproc/,/\.cfi_endproc/p'
   }
 
-  # uint-overflow [add|sub|mul]
+  # uint-overflow [add|sub|mul|inc|dec]
   $ uint-overflow() {
     local n="${1:-add}"
+    local u=''
     local o
     case "$n" in
       add) o='+';;
       sub) o='-';;
       mul) o='*';;
+      inc) o='++'; u='u';;
+      dec) o='--'; u='u';;
       *) echo >&2 "unknown op name '$n'"; return 1;;
     esac
     local N="$(tr '[:lower:]' '[:upper:]' <<< "$n")"
     echo -e '#include <stdlib.h>\n#include <stdarg.h>\n#include <stdio.h>\n'
     sed -nr '\|^//\s+>>>\s+WORD_COUNT_COMMON\s*$|,\|^//\s+<<<\s+WORD_COUNT_COMMON\s*$|p' word-count.c
-    echo -e '\nsize_t f(size_t a, size_t b)\n{\n\tASSERT_UINT_'"$N"'_NO_OVERFLOW(a, b);\n\treturn a '"$o"' b;\n}'
+    [ -z "$u" ] &&
+    echo -e '\nsize_t f(size_t a, size_t b)\n{\n\tASSERT_UINT_'"$N"'_NO_OVERFLOW(a, b);\n\treturn a '"$o"' b;\n}' ||
+    echo -e '\nsize_t f(size_t a)\n{\n\tASSERT_UINT_'"$N"'_NO_OVERFLOW(a);\n\treturn '"$o"' a;\n}'
   }
 
 The shell function 'uint-overflow' produces C code for to be able to compile
@@ -568,7 +573,7 @@ overflow checking code that 'word-count.c' defines (the code shown below was
 shortened, replacing with ellipsis marks the source code of 'word-count.c'):
 
   # meta-command:
-  $ for n in add sub mul; do
+  $ for n in add sub mul inc dec; do
       c="uint-overflow $n"
       echo "$ $c"
       eval "$c"
@@ -607,12 +612,34 @@ shortened, replacing with ellipsis marks the source code of 'word-count.c'):
       return a * b;
   }
 
+  $ uint-overflow inc
+  #include <stdlib.h>
+  #include <stdarg.h>
+  #include <stdio.h>
+  ...
+  size_t f(size_t a)
+  {
+      ASSERT_UINT_INC_NO_OVERFLOW(a);
+      return ++ a;
+  }
+
+  $ uint-overflow dec
+  #include <stdlib.h>
+  #include <stdarg.h>
+  #include <stdio.h>
+  ...
+  size_t f(size_t a)
+  {
+      ASSERT_UINT_DEC_NO_OVERFLOW(a);
+      return -- a;
+  }
+
 Now, let see the code generated on an x86-64 platform for the above three kinds
 of functions 'f', when the functions do not make use of GCC's integer overflow
 checking builtins.
 
   # meta-command:
-  $ for n in add sub mul; do
+  $ for n in add sub mul inc dec; do
       c="uint-overflow $n|gcc-asm -O3"
       echo "$ $c"
       eval "$c"
@@ -678,13 +705,49 @@ checking builtins.
           call    assert_failed
           .cfi_endproc
 
+  $ uint-overflow inc|gcc-asm -O3
+          .cfi_startproc
+          cmpq    $-1, %rdi
+          je      .L7
+          leaq    1(%rdi), %rax
+          ret
+          .p2align 4,,10
+          .p2align 3
+  .L7:
+          subq    $8, %rsp
+          .cfi_def_cfa_offset 16
+          movl    $.LC0, %ecx
+          movl    $__func__.0, %edx
+          movl    $401, %esi
+          movl    $.LC1, %edi
+          call    assert_failed
+          .cfi_endproc
+
+  $ uint-overflow dec|gcc-asm -O3
+          .cfi_startproc
+          testq   %rdi, %rdi
+          je      .L7
+          leaq    -1(%rdi), %rax
+          ret
+          .p2align 4,,10
+          .p2align 3
+  .L7:
+          subq    $8, %rsp
+          .cfi_def_cfa_offset 16
+          movl    $.LC0, %ecx
+          movl    $__func__.0, %edx
+          movl    $401, %esi
+          movl    $.LC1, %edi
+          call    assert_failed
+          .cfi_endproc
+
 When the 'f' functions do make use of GCC's integer overflow checking builtins,
 then the code generated gets simplified to only executing the respective integer
 arithmetic operation and a corresponding jump instruction handling the case of
 an actual overflow (except for subtraction operations on x86-64 platforms):
 
   # meta-command:
-  $ for n in add sub mul; do
+  $ for n in add sub mul inc dec; do
       c="uint-overflow $n|gcc-asm -O3 -DCONFIG_USE_OVERFLOW_BUILTINS"
       echo "$ $c"
       eval "$c"
@@ -739,6 +802,38 @@ an actual overflow (except for subtraction operations on x86-64 platforms):
           call    assert_failed
           .cfi_endproc
 
+  $ uint-overflow inc|gcc-asm -O3 -DCONFIG_USE_OVERFLOW_BUILTINS
+          .cfi_startproc
+          movq    %rdi, %rax
+          addq    $1, %rax
+          jc      .L10
+          ret
+  .L10:
+          pushq   %rax
+          .cfi_def_cfa_offset 16
+          movl    $.LC0, %ecx
+          movl    $__func__.0, %edx
+          movl    $401, %esi
+          movl    $.LC1, %edi
+          call    assert_failed
+          .cfi_endproc
+
+  $ uint-overflow dec|gcc-asm -O3 -DCONFIG_USE_OVERFLOW_BUILTINS
+          .cfi_startproc
+          cmpq    $1, %rdi
+          jb      .L10
+          leaq    -1(%rdi), %rax
+          ret
+  .L10:
+          pushq   %rax
+          .cfi_def_cfa_offset 16
+          movl    $.LC0, %ecx
+          movl    $__func__.0, %edx
+          movl    $401, %esi
+          movl    $.LC1, %edi
+          call    assert_failed
+          .cfi_endproc
+
 Above is to be seen that on x86-64 platforms, GCC uses the carry flag (CF) and
 the overflow flag (OF) -- by means of the instructions 'jc' and, respectively,
 'jo' -- to check whether the previously executed integer arithmetic operation
@@ -750,6 +845,19 @@ Strangely enough, for the case of integer substraction operations, none of GCC
           .cfi_startproc
           movq    %rdi, %rax
           subq    %rsi, %rax
+          jb      .L10
+          ret
+  .L10:
+          ...
+          call    assert_failed
+          .cfi_endproc
+
+In the case of decrement operations too, none of GCC (up to the latest 11.2)
+generate the simpler code:
+
+          .cfi_startproc
+          movq    %rdi, %rax
+          subq    $1, %rax
           jb      .L10
           ret
   .L10:
