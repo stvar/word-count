@@ -750,7 +750,7 @@ Strangely enough, for the case of integer substraction operations, none of GCC
           .cfi_startproc
           movq    %rdi, %rax
           subq    %rsi, %rax
-          jc      .L10
+          jb      .L10
           ret
   .L10:
           ...
