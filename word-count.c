@@ -1146,7 +1146,7 @@ struct mem_map_t*
         __h;                          \
     })
 
-#endif // CONFIG_USE_HASH_ALGO == HASH_ALGO_FNV
+#endif // CONFIG_USE_HASH_ALGO == HASH_ALGO_FNV1
 
 #if CONFIG_USE_HASH_ALGO == HASH_ALGO_FNV1A
 
