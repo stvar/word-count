@@ -298,7 +298,7 @@ build-run-tests()
             [[ "$o" == @(SANITIZE|OPT)=* ]] &&
             continue
         else
-            # stev: count the number or 'SANITIZE=' args
+            # stev: count the number of 'SANITIZE=' args
             [[ "${o:0:9}" == 'SANITIZE=' ]] &&
             ((G ++))
         fi
