@@ -388,11 +388,15 @@ word-count()
 {
     local l='valgrind.log'
 
-    valgrind --log-file="$l" ./word-count "$@" ||
-    { error "valgrind exited with error code: $?"; return 1; }
-
-    grep -qP '^==\d+==\s+in use at exit: 0 bytes' "$l" ||
-    { error "valgrind found memory leaks"; return 1; }
+    valgrind \
+        --log-file="$l" \
+        --leak-check=yes \
+        --error-exitcode=127 \
+        ./word-count "$@" || {
+        error "valgrind exited with error code: $?"
+        cat "$l"
+        return 1
+    }
 
     return 0
 }
