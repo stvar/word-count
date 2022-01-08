@@ -317,6 +317,9 @@ build-run-tests()
         c="\
 $program -B${verbose:+ -v}${no_color:+ -c}${dry_run:+ -d} -e$a"
         local r=0
+        # $ cfg-names() { grep test.sh -Poe '(?<=CONFIG\+=)[A-Z0-9_]+' --color=none; }
+        # $ gen-comb() { python gen-comb.py "$@"; }
+        # $ cfg-names|gen-comb|sed -r 's/^/\t\t\t/;s/ /\\\0/g;$!s/$/ \\/'
         for p in '' \
             USE_48BIT_PTR \
             USE_OVERFLOW_BUILTINS \
