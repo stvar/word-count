@@ -1496,6 +1496,9 @@ void lhash_rehash(struct lhash_t* hash)
 
     t = calloc(s, sizeof *hash->table);
     VERIFY(t != NULL);
+#ifdef CONFIG_PROBE_HASH_FORWARD
+    struct lhash_node_t* f = t + s;
+#endif
 
     for (p = hash->table,
          e = p + hash->size;
@@ -1516,10 +1519,15 @@ void lhash_rehash(struct lhash_t* hash)
 #ifdef CONFIG_COLLECT_STATISTICS
             hash->stats.rehash_hit ++;
 #endif
+#ifndef CONFIG_PROBE_HASH_FORWARD
             if (q == t)
                 q += s - 1;
             else
                 q --;
+#else
+            if (++ q == f)
+                q = t;
+#endif
         }
 
         *q = *p;
@@ -1575,6 +1583,12 @@ bool lhash_insert(
     ASSERT(key != NULL);
     LHASH_ASSERT_INVARIANTS(hash);
 
+#ifdef CONFIG_PROBE_HASH_FORWARD
+    struct lhash_node_t* e =
+        hash->table +
+        hash->size;
+#endif
+
     h = lhash_hash_key(key, len);
     p = hash->table + h % hash->size;
 
@@ -1583,10 +1597,15 @@ bool lhash_insert(
             *result = p;
             return false;
         }
+#ifndef CONFIG_PROBE_HASH_FORWARD
         if (p == hash->table)
             p += hash->size - 1;
         else
             p --;
+#else
+        if (++ p == e)
+            p = hash->table;
+#endif
     }
 
     ASSERT(hash->max_load <= hash->size - 1);
@@ -1600,6 +1619,10 @@ bool lhash_insert(
     // it strictly; therefore: hash->used < S
 
     lhash_rehash(hash);
+
+#ifdef CONFIG_PROBE_HASH_FORWARD
+    e = hash->table + hash->size;
+#endif
 
     // stev: we have that:
     //   hash->used < hash->size - 1
@@ -1615,10 +1638,15 @@ bool lhash_insert(
 #ifdef CONFIG_COLLECT_STATISTICS
         hash->stats.insert_hit ++;
 #endif
+#ifndef CONFIG_PROBE_HASH_FORWARD
         if (p == hash->table)
             p += hash->size - 1;
         else
             p --;
+#else
+        if (++ p == e)
+            p = hash->table;
+#endif
     }
 
 new_node:
@@ -1649,6 +1677,12 @@ bool lhash_lookup(
     ASSERT(key != NULL);
     LHASH_ASSERT_INVARIANTS(hash);
 
+#ifdef CONFIG_PROBE_HASH_FORWARD
+    struct lhash_node_t* e =
+        hash->table +
+        hash->size;
+#endif
+
     h = lhash_hash_key(key, len);
     p = hash->table + h % hash->size;
 
@@ -1663,10 +1697,15 @@ bool lhash_lookup(
             *result = p;
             return true;
         }
+#ifndef CONFIG_PROBE_HASH_FORWARD
         if (p == hash->table)
             p += hash->size - 1;
         else
             p --;
+#else
+        if (++ p == e)
+            p = hash->table;
+#endif
     }
 
 #ifdef CONFIG_COLLECT_STATISTICS
@@ -2932,6 +2971,11 @@ void print_config(FILE* file)
         PRINT_CONFIG_UND(USE_IO_BUF_LINEAR_GROWTH),
 #else
         PRINT_CONFIG_DEF(USE_IO_BUF_LINEAR_GROWTH),
+#endif
+#ifndef CONFIG_PROBE_HASH_FORWARD
+        PRINT_CONFIG_UND(PROBE_HASH_FORWARD),
+#else
+        PRINT_CONFIG_DEF(PROBE_HASH_FORWARD),
 #endif
 #ifndef CONFIG_COLLECT_STATISTICS
         PRINT_CONFIG_UND(COLLECT_STATISTICS),
