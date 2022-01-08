@@ -94,7 +94,7 @@ ifneq ($(filter-out 0 1 2 3 PERF PROF PPROF,${OPT}),)
 $(error invalid OPT='${OPT}')
 endif
 ifeq (${OPT},PERF)
-CFLAGS += -O3 -fno-omit-frame-pointer
+CFLAGS += -O3 -fno-omit-frame-pointer -g
 else ifeq (${OPT},PROF)
 CFLAGS += -O3 -pg
 else ifeq (${OPT},PPROF)
