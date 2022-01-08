@@ -125,7 +125,7 @@ kind, from within the top directory of the source tree:
 
   $ make [ARG]...
 
-where each 'ARG' is of one the following form:
+where each 'ARG' is of one of the following form:
 
   ------------------------  -------------------------
        'make' argument            'gcc' argument
