@@ -28,9 +28,10 @@ where the actions are:
                            \`-m|--use-mmap-io={-,+,dict|text}', along
                            with the following 'Makefile' parameters:
                              * no 'CONFIG', 'CONFIG+=USE_48BIT_PTR',
-                               or 'CONFIG+=USE_OVERFLOW_BUILTINS',
-                               or 'CONFIG+=USE_IO_BUF_LINEAR_GROWTH'
-                               or 'CONFIG+=MEMOIZE_KEY_HASHES';
+                               'CONFIG+=USE_OVERFLOW_BUILTINS',
+                               'CONFIG+=USE_IO_BUF_LINEAR_GROWTH'
+                               'CONFIG+=MEMOIZE_KEY_HASHES',
+                               'CONFIG+=PROBE_HASH_FORWARD';
                              * no 'SANITIZE', 'SANITIZE=address',
                                or 'SANITIZE=undefined';
                              * no 'OPT' or 'OPT=3'
@@ -325,17 +326,33 @@ $program -B${verbose:+ -v}${no_color:+ -c}${dry_run:+ -d} -e$a"
             USE_OVERFLOW_BUILTINS \
             USE_IO_BUF_LINEAR_GROWTH \
             MEMOIZE_KEY_HASHES \
+            PROBE_HASH_FORWARD \
             USE_48BIT_PTR\ USE_OVERFLOW_BUILTINS \
             USE_48BIT_PTR\ USE_IO_BUF_LINEAR_GROWTH \
             USE_48BIT_PTR\ MEMOIZE_KEY_HASHES \
+            USE_48BIT_PTR\ PROBE_HASH_FORWARD \
             USE_OVERFLOW_BUILTINS\ USE_IO_BUF_LINEAR_GROWTH \
             USE_OVERFLOW_BUILTINS\ MEMOIZE_KEY_HASHES \
+            USE_OVERFLOW_BUILTINS\ PROBE_HASH_FORWARD \
             USE_IO_BUF_LINEAR_GROWTH\ MEMOIZE_KEY_HASHES \
+            USE_IO_BUF_LINEAR_GROWTH\ PROBE_HASH_FORWARD \
+            MEMOIZE_KEY_HASHES\ PROBE_HASH_FORWARD \
             USE_48BIT_PTR\ USE_OVERFLOW_BUILTINS\ USE_IO_BUF_LINEAR_GROWTH \
             USE_48BIT_PTR\ USE_OVERFLOW_BUILTINS\ MEMOIZE_KEY_HASHES \
+            USE_48BIT_PTR\ USE_OVERFLOW_BUILTINS\ PROBE_HASH_FORWARD \
             USE_48BIT_PTR\ USE_IO_BUF_LINEAR_GROWTH\ MEMOIZE_KEY_HASHES \
+            USE_48BIT_PTR\ USE_IO_BUF_LINEAR_GROWTH\ PROBE_HASH_FORWARD \
+            USE_48BIT_PTR\ MEMOIZE_KEY_HASHES\ PROBE_HASH_FORWARD \
             USE_OVERFLOW_BUILTINS\ USE_IO_BUF_LINEAR_GROWTH\ MEMOIZE_KEY_HASHES \
-            USE_48BIT_PTR\ USE_OVERFLOW_BUILTINS\ USE_IO_BUF_LINEAR_GROWTH\ MEMOIZE_KEY_HASHES
+            USE_OVERFLOW_BUILTINS\ USE_IO_BUF_LINEAR_GROWTH\ PROBE_HASH_FORWARD \
+            USE_OVERFLOW_BUILTINS\ MEMOIZE_KEY_HASHES\ PROBE_HASH_FORWARD \
+            USE_IO_BUF_LINEAR_GROWTH\ MEMOIZE_KEY_HASHES\ PROBE_HASH_FORWARD \
+            USE_48BIT_PTR\ USE_OVERFLOW_BUILTINS\ USE_IO_BUF_LINEAR_GROWTH\ MEMOIZE_KEY_HASHES \
+            USE_48BIT_PTR\ USE_OVERFLOW_BUILTINS\ USE_IO_BUF_LINEAR_GROWTH\ PROBE_HASH_FORWARD \
+            USE_48BIT_PTR\ USE_OVERFLOW_BUILTINS\ MEMOIZE_KEY_HASHES\ PROBE_HASH_FORWARD \
+            USE_48BIT_PTR\ USE_IO_BUF_LINEAR_GROWTH\ MEMOIZE_KEY_HASHES\ PROBE_HASH_FORWARD \
+            USE_OVERFLOW_BUILTINS\ USE_IO_BUF_LINEAR_GROWTH\ MEMOIZE_KEY_HASHES\ PROBE_HASH_FORWARD \
+            USE_48BIT_PTR\ USE_OVERFLOW_BUILTINS\ USE_IO_BUF_LINEAR_GROWTH\ MEMOIZE_KEY_HASHES\ PROBE_HASH_FORWARD
         do
             for s in '' address undefined; do
                 for o in '' 3; do
