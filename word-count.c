@@ -688,7 +688,7 @@ void io_error_sys(
             __s, TIME_NSECS);         \
         __s *= TIME_NSECS;            \
         ASSERT_UINT_ADD_NO_OVERFLOW(  \
-            __s , __n);               \
+            __s, __n);                \
         __s + __n;                    \
     })
 
