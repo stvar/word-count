@@ -248,6 +248,11 @@ Currently, the configuration parameters of Word-Count are as shown:
     hash table does this memoizing, its rehashing operation works faster, but
     the table itself will consume more memory.
 
+  * 'CONFIG_PROBE_HASH_FORWARD'
+    By default, the hash table of Word-Count works by probing entries backward,
+    exactly as Knuth's Algorithm and Program L do [1]; this parameter allows
+    one to change that logic: have the hash table do forward probing instead.
+
 The 'make' parameter 'SANITIZE=$SANITIZE' makes GCC receiving the argument
 `-fsanitize=$SANITIZE', where '$SANITIZE' can be 'address' or 'undefined'.
 
