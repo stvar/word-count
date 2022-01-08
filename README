@@ -267,6 +267,12 @@ an instrumented 'word-count' will generate upon each execution profiling data
 that can be read and analyzed with the help of 'gprof' program (which is part
 of GNU Binutils package [11]).
 
+When '$OPT' is 'PPROF', by receiving the arguments `-O3 -g -lprofiler', GCC is
+instructed to build a binary 'word-count' that is linked against the Google's
+CPU profiler library [12]. Upon running such a 'word-count' binary, profiling
+data will be generated that can further be read and analyzed with the help of
+accompanying program 'pprof'.
+
 Upon running 'make', expect to get neither warnings nor errors out of it. If
 everything went OK, 'make' is supposed to have produced the binary 'word-count'.
 
@@ -935,5 +941,8 @@ Internet Resources:
 [11] GNU Binutils: GProf
      https://www.gnu.org/software/binutils/
      https://sourceware.org/binutils/docs/gprof.html
+
+[12] Gperftools: Google Performance Tools
+     https://github.com/gperftools/gperftools
 
 
