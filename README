@@ -51,6 +51,7 @@ command lines as shown by 'word-count's own help info:
                                'none' or 'all'; the default is 'none'; '-'
                                is a shortcut for 'none' and '+' for 'all';
                                attached env var: $WORD_COUNT_USE_MMAP_IO
+    -s|--sort-words          sort dictionary words prior to print them out
        --[print-]config      print all config and debug parameters and exit
        --version             print version numbers and exit
     -?|--help                display this help info and exit
