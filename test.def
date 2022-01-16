@@ -64,7 +64,7 @@ lorem-ipsum --dict > $dict_temp_file &&"
     [ -z "$text_temp_file" ] && c+=${c:+$'\n'}"\
 lorem-ipsum --input|"
     c+="
-word-count"
+word-count -s"
     [ -z "$dict_temp_file" ] && c+=" \
 <(lorem-ipsum --dict)"
     [ -n "$dict_temp_file" ] && c+=" \
@@ -72,7 +72,7 @@ $dict_temp_file"
     [ -n "$text_temp_file" ] && c+=" \
 $text_temp_file"
     c+="|
-sed '\$d'|cut -d $'\\t' -f2|sort -f"
+sed '\$d'|cut -d $'\\t' -f2"
 
     run-test \
 'lorem-ipsum2' \
