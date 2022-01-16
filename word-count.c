@@ -159,7 +159,7 @@ const char help[] =
     ({                                              \
         extern int __attribute__                    \
             ((error("assertion failed: '" #E "'"))) \
-            static_assert();                        \
+            static_assert(void);                    \
         (void) ((E) ? 0 : static_assert());         \
         __VA_ARGS__;                                \
     })
@@ -708,7 +708,7 @@ void io_error_sys(
         (x) -= (y);                        \
     })
 
-uint64_t time_now()
+uint64_t time_now(void)
 {
     struct timespec t;
     clock_gettime(CLOCK_REALTIME, &t);
