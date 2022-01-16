@@ -127,14 +127,17 @@ kind, from within the top directory of the source tree:
 
 where each 'ARG' is of one of the following form:
 
-  ------------------------  -------------------------
-       'make' argument            'gcc' argument
-  ------------------------  -------------------------
+  ------------------------  ----------------------------------
+       'make' argument               'gcc' arguments
+  ------------------------  ----------------------------------
     CONFIG+=$NAME             -DCONFIG_$NAME
     CONFIG+=$NAME=$VALUE      -DCONFIG_$NAME=$VALUE
     SANITIZE=$SANITIZE        -fsanitize=$SANITIZE
-    OPT=$OPT                  -O$OPT and a few more
-  ------------------------  -------------------------
+    OPT=$OPT                  -O$OPT, in case $OPT is [0-3]
+    OPT=PERF                  -O3 -fno-omit-frame-pointer -g
+    OPT=PROF                  -O3 -pg
+    OPT=PPROF                 -O3 -lprofiler -g
+  ------------------------  ----------------------------------
 
 Above, in the case of 'CONFIG' arguments, '$NAME' is the name of the respective
 configuration parameter, stripped off the common prefix 'CONFIG_'; '$VALUE' is
@@ -272,7 +275,7 @@ an instrumented 'word-count' will generate upon each execution profiling data
 that can be read and analyzed with the help of 'gprof' program (which is part
 of GNU Binutils package [11]).
 
-When '$OPT' is 'PPROF', by receiving the arguments `-O3 -g -lprofiler', GCC is
+When '$OPT' is 'PPROF', by receiving the arguments `-O3 -lprofiler -g', GCC is
 instructed to build a binary 'word-count' that is linked against the Google's
 CPU profiler library [12]. Upon running such a 'word-count' binary, profiling
 data will be generated that can further be read and analyzed with the help of
@@ -523,8 +526,8 @@ of Word-Count is as follows:
   struct mem_buf_t
   ----------------
   A class incarnating the 'mem_mgr_t' interface that *manages* a set of regions
-  of memory that are obtained from the free store via the functions 'malloc' or
-  'realloc'. The lifetime of each managed memory region extends precisely until
+  of memory obtained from the free store through the 'malloc' family of library
+  functions. The lifetime of each managed memory region extends precisely until
   that of 'mem_buf_t's instance itself. At the end of lifetime of an instance
   of 'mem_buf_t' all memory regions that the instance manages are released by
   calling the C library function 'free'.
@@ -646,7 +649,7 @@ shortened, replacing with ellipsis marks the source code of 'word-count.c'):
       return -- a;
   }
 
-Now, let see the code generated on an x86-64 platform for the above three kinds
+Now, let see the code generated on an x86-64 platform for the above five kinds
 of functions 'f', when the functions do not make use of GCC's integer overflow
 checking builtins.
 
