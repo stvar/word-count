@@ -94,6 +94,7 @@ const char help[] =
 "                             'none' or 'all'; the default is 'none'; '-'\n"
 "                             is a shortcut for 'none' and '+' for 'all';\n"
 "                             attached env var: $WORD_COUNT_USE_MMAP_IO\n"
+"  -s|--sort-words          sort dictionary words prior to print them out\n"
 "     --[print-]config      print all config and debug parameters and exit\n"
 #ifdef CONFIG_COLLECT_STATISTICS
 "     --[print-]stat-names  print the names of the statistics parameters\n"
@@ -1737,6 +1738,38 @@ void lhash_print(
     }
 }
 
+int lhash_cmp_key(
+    const struct lhash_node_t* a,
+    const struct lhash_node_t* b)
+{
+    const char
+        *x = LHASH_NODE_KEY(a),
+        *y = LHASH_NODE_KEY(b);
+
+    if (x == y)
+        return 0;
+    if (x == NULL)
+        return +1;
+    if (y == NULL)
+        return -1;
+
+    unsigned
+        n = LHASH_NODE_LEN(a),
+        m = LHASH_NODE_LEN(b);
+    int r = memcmp(x, y, n < m ? n : m);
+
+    return r ? r : n < m ? -1 : +1;
+}
+
+void lhash_sort(
+    struct lhash_t* hash)
+{
+    qsort(hash->table,
+        hash->size, sizeof *hash->table,
+        (int (*)(const void*, const void*))
+        lhash_cmp_key);
+}
+
 #ifdef CONFIG_COLLECT_STATISTICS
 
 const struct stat_params_t*
@@ -2854,6 +2887,12 @@ void dict_count(
 #endif
 }
 
+void dict_sort(
+    struct dict_t* dict)
+{
+    lhash_sort(&dict->hash);
+}
+
 void dict_print(
     const struct dict_t* dict, FILE* file)
 {
@@ -3026,6 +3065,7 @@ struct options_t
     size_t hash_tbl_size;
     bits_t dict_use_mmap_io: 1;
     bits_t text_use_mmap_io: 1;
+    bits_t sort_words: 1;
 };
 
 void options_invalid_opt_arg(
@@ -3254,6 +3294,7 @@ const struct options_t*
         io_buf_size_opt   = 'b',
         hash_tbl_size_opt = 'h',
         use_mmap_io_opt   = 'm',
+        sort_words_opt    = 's',
 
         // stev: info options:
         help_opt          = '?',
@@ -3273,6 +3314,7 @@ const struct options_t*
         { "io-buf-size",      1,       0, io_buf_size_opt },
         { "hash-tbl-size",    1,       0, hash_tbl_size_opt },
         { "use-mmap-io",      1,       0, use_mmap_io_opt },
+        { "sort-words",       0,       0, sort_words_opt },
         { "print-config",     0,       0, print_config_opt },
         { "config",           0,       0, print_config_opt },
 #ifdef CONFIG_COLLECT_STATISTICS
@@ -3288,7 +3330,7 @@ const struct options_t*
 #ifdef CONFIG_COLLECT_STATISTICS
         "LCS"
 #endif
-        "b:h:m:";
+        "b:h:m:s";
 
     struct bits_opts_t
     {
@@ -3362,6 +3404,9 @@ const struct options_t*
             options_parse_use_mmap_io_optarg(
                 &opts, "use-mmap-io",
                 optarg);
+            break;
+        case sort_words_opt:
+            opts.sort_words = true;
             break;
         case print_config_opt:
             bits.config = true;
@@ -3491,11 +3536,16 @@ int main(int argc, char* argv[])
     }
 
 #ifndef CONFIG_COLLECT_STATISTICS
+    if (opt->sort_words)
+        dict_sort(&dict);
     dict_print(&dict, stdout);
 #else
     if (opt->action ==
-        options_action_count_words)
+        options_action_count_words) {
+        if (opt->sort_words)
+            dict_sort(&dict);
         dict_print(&dict, stdout);
+    }
     else
     print_stats:
         dict_print_stats(&dict, stdout);
