@@ -1758,6 +1758,10 @@ int lhash_cmp_key(
         m = LHASH_NODE_LEN(b);
     int r = memcmp(x, y, n < m ? n : m);
 
+    // r == 0 => n != m, since the hash
+    // table doesn't contain duplicates
+    ASSERT(r || n != m);
+
     return r ? r : n < m ? -1 : +1;
 }
 
