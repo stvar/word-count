@@ -2742,16 +2742,7 @@ void dict_load(
         file_name, "dictionary");
 
     while (file_io_get_line(&f, &b, &k)) {
-        const char *p;
-
         l ++;
-
-        if ((p = memchr(b, 0, k)) != NULL) {
-            size_t d = PTR_DIFF(p, b);
-            warning("NUL char in line #%zu: truncating "
-                    "it from length %zu to %zu", l, k, d);
-            k = d;
-        }
 
         if (k == 0 || b[0] == '#')
             continue;
