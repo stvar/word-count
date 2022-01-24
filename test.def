@@ -194,9 +194,7 @@ tests=(
 'a\nb\0c\n'
 'a\tb c\n'
 "\
-word-count: warning: NUL char in line #2: truncating it from length 3 to 1
 1	a
-1	b
 3	total
 "
 
