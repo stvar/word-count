@@ -25,7 +25,7 @@ where the actions are:
   -A|--all-build-run     build 'word-count' and run all tests on it
                            for each valid combination of the script's
                            command line options \`-g|--valgrind' and
-                           \`-m|--use-mmap-io={-,+,dict|text}', along
+                           \`-m|--use-mmap-io={-,+,dict,text}', along
                            with the following 'Makefile' parameters:
                              * no 'CONFIG', 'CONFIG+=USE_48BIT_PTR',
                                'CONFIG+=USE_OVERFLOW_BUILTINS',
