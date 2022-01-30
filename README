@@ -547,6 +547,21 @@ is using buffered I/O. When the 'dict_t' instance is told to use memory-mapped
 I/O, there's no 'memcpy', nor is any memory-write operation implied by loading
 in the input dictionary file.
 
+For example, let build a 'word-count' binary and collect statistics by running
+it on a dictionary containing a little more than 300K words:
+
+  $ wc --lines --bytes /usr/share/dict/words|numfmt --field=2 --to=iec
+  307993    3.1M /usr/share/dict/words
+
+  $ make CONFIG+=COLLECT_STATISTICS -B
+
+  $ ./word-count -L /usr/share/dict/words|grep memcpy
+  load.buf.memcpy_bytes:   36
+  load.buf.memcpy_count:   8
+
+The output of 'word-count' above shows that 'memcpy' is invoked only 8 times,
+for to copy a total of only 36 bytes.
+
 
 4. GCC's Integer Arithmetic Overflow Builtins
 =============================================
