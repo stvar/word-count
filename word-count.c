@@ -3116,11 +3116,12 @@ size_t options_parse_num(
         10);
 }
 
-size_t options_parse_su_size_optarg(
+void options_parse_su_size_optarg(
     const char* opt_name,
     const char* opt_arg,
     size_t min,
-    size_t max)
+    size_t max,
+    size_t* res)
 {
     const char *p, *q;
     size_t n, v, d;
@@ -3134,50 +3135,61 @@ size_t options_parse_su_size_optarg(
         (d == 0) ||
         (d < n - 1) ||
         (d == n - 1 && *q != 'k' && *q != 'K' &&
-            *q != 'm' && *q != 'M'))
+            *q != 'm' && *q != 'M')) {
+        if (opt_name == NULL)
+            return;
         options_invalid_opt_arg(
             opt_name,
             opt_arg);
+    }
 
     switch (*q) {
     case 'm':
     case 'M':
-        if (!UINT_MUL_NO_OVERFLOW(v, KB(1)))
+        if (!UINT_MUL_NO_OVERFLOW(v, KB(1))) {
+            if (opt_name == NULL)
+                return;
             options_illegal_opt_arg(
                 opt_name,
                 opt_arg);
+        }
         v *= KB(1);
         // FALLTHROUGH
 
     case 'k':
     case 'K':
-        if (!UINT_MUL_NO_OVERFLOW(v, KB(1)))
+        if (!UINT_MUL_NO_OVERFLOW(v, KB(1))) {
+            if (opt_name == NULL)
+                return;
             options_illegal_opt_arg(
                 opt_name,
                 opt_arg);
+        }
         v *= KB(1);
     }
 
     if ((min > 0 && v < min) ||
-        (max > 0 && v > max))
+        (max > 0 && v > max)) {
+        if (opt_name == NULL)
+            return;
         options_illegal_opt_arg(
             opt_name,
             opt_arg);
+    }
 
-    return v;
+    *res = v;
 }
 
-#define OPTIONS_PARSE_SU_SIZE_OPTARG(n)   \
-    do {                                  \
-        if (opt_name != NULL)             \
-            ASSERT(opt_arg != NULL);      \
-        else                              \
-        if (opt_arg == NULL)              \
-            return;                       \
-        opts->n =                         \
-            options_parse_su_size_optarg( \
-                opt_name, opt_arg,        \
-                1, 0);                    \
+#define OPTIONS_PARSE_SU_SIZE_OPTARG(n) \
+    do {                                \
+        if (opt_name != NULL)           \
+            ASSERT(opt_arg != NULL);    \
+        else                            \
+        if (opt_arg == NULL)            \
+            return;                     \
+        options_parse_su_size_optarg(   \
+            opt_name, opt_arg,          \
+            1, 0, &opts->n);            \
     } while (0)
 
 void options_parse_io_buf_size_optarg(
